@@ -2,6 +2,10 @@
 if (!defined('ABSPATH')) exit;
 
 class PixelStampProcessor {
+    public static function can_use_ttf() {
+        return function_exists('imagettftext') && function_exists('imagettfbbox');
+    }
+
     public static function apply($file_path, $settings) {
         $info = getimagesize($file_path);
         if (!$info) return false;
@@ -50,39 +54,9 @@ class PixelStampProcessor {
         if ($font_size < 10) $font_size = 10; // Minimum size
 
 
-        // Font Selection (Prioritize local assets)
-        $font_path = PIXELSTAMP_WATERMARK_PATH . 'assets/fonts/';
-        switch ($font_choice) {
-            case 'arial':
-                $font_path .= 'Arial.ttf';
-                break;
-            case 'times':
-                $font_path .= 'Times.ttf';
-                break;
-            case 'courier':
-                $font_path .= 'Courier.ttf';
-                break;
-            default:
-                $font_path .= 'Inter-Bold.ttf';
-        }
-
-
-        // If font file doesn't exist, try a few fallbacks or use built-in font
-        if (!file_exists($font_path)) {
-            $fallbacks = [
-                '/System/Library/Fonts/Supplemental/Arial.ttf',
-                '/Library/Fonts/Arial Unicode.ttf',
-                PIXELSTAMP_WATERMARK_PATH . 'assets/fonts/Inter-Bold.ttf'
-            ];
-            foreach ($fallbacks as $fb) {
-                if (file_exists($fb)) {
-                    $font_path = $fb;
-                    break;
-                }
-            }
-        }
-
-        $use_ttf = file_exists($font_path);
+        // Font Selection (supports plugin fonts + common OS font locations).
+        $font_path = self::resolve_working_ttf_font($font_choice, $font_size);
+        $use_ttf = ($font_path !== '');
 
         // Colors
         $rgb = self::hex2rgb($color_hex);
@@ -100,10 +74,14 @@ class PixelStampProcessor {
 
         foreach ($lines as $line) {
             if ($use_ttf) {
-                $bbox = imagettfbbox($font_size, 0, $font_path, $line);
-                $w = abs($bbox[2] - $bbox[0]);
+                $bbox = @imagettfbbox($font_size, 0, $font_path, $line);
+                if ($bbox !== false) {
+                    $w = abs($bbox[2] - $bbox[0]);
+                } else {
+                    $w = strlen(self::normalize_line_for_builtin_font($line)) * imagefontwidth(5);
+                }
             } else {
-                $w = strlen($line) * imagefontwidth(5);
+                $w = strlen(self::normalize_line_for_builtin_font($line)) * imagefontwidth(5);
             }
             if ($w > $max_line_width) $max_line_width = $w;
         }
@@ -150,14 +128,28 @@ class PixelStampProcessor {
             // Adjust vertical alignment for TTF
             $ly = $y + $padding + ($i * $line_height) + ($use_ttf ? ($font_size * 1.1) : 0);
             if ($use_ttf) {
-                $bbox = imagettfbbox($font_size, 0, $font_path, $line);
-                $lw = abs($bbox[2] - $bbox[0]);
-                $lx = $x + $padding + ($max_line_width - $lw) / 2;
-                imagettftext($image, $font_size, 0, $lx, $ly, $text_color, $font_path, $line);
+                $bbox = @imagettfbbox($font_size, 0, $font_path, $line);
+                if ($bbox !== false) {
+                    $lw = abs($bbox[2] - $bbox[0]);
+                    $lx = $x + $padding + ($max_line_width - $lw) / 2;
+                    $drawn = @imagettftext($image, $font_size, 0, $lx, $ly, $text_color, $font_path, $line);
+                    if ($drawn === false) {
+                        $fallback = self::normalize_line_for_builtin_font($line);
+                        $lw = strlen($fallback) * imagefontwidth(5);
+                        $lx = $x + $padding + ($max_line_width - $lw) / 2;
+                        imagestring($image, 5, $lx, $ly, $fallback, $text_color);
+                    }
+                } else {
+                    $fallback = self::normalize_line_for_builtin_font($line);
+                    $lw = strlen($fallback) * imagefontwidth(5);
+                    $lx = $x + $padding + ($max_line_width - $lw) / 2;
+                    imagestring($image, 5, $lx, $ly, $fallback, $text_color);
+                }
             } else {
-                $lw = strlen($line) * imagefontwidth(5);
+                $fallback = self::normalize_line_for_builtin_font($line);
+                $lw = strlen($fallback) * imagefontwidth(5);
                 $lx = $x + $padding + ($max_line_width - $lw) / 2;
-                imagestring($image, 5, $lx, $ly, $line, $text_color);
+                imagestring($image, 5, $lx, $ly, $fallback, $text_color);
             }
         }
 
@@ -210,5 +202,163 @@ class PixelStampProcessor {
             $b = hexdec(substr($hex,4,2));
         }
         return [$r, $g, $b];
+    }
+
+    private static function normalize_line_for_builtin_font($line) {
+        $line = (string) $line;
+        if (function_exists('iconv')) {
+            $converted = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $line);
+            if ($converted !== false) {
+                $line = $converted;
+            }
+        }
+        // GD built-in bitmap fonts only support basic ASCII reliably.
+        $line = preg_replace('/[^\x20-\x7E]/', '', $line);
+        return $line !== '' ? $line : 'PixelStamp';
+    }
+
+    private static function resolve_font_path($font_choice) {
+        $font_choice = sanitize_key((string) $font_choice);
+        $candidates = self::get_font_candidates();
+
+        $selected = isset($candidates[$font_choice]) ? $candidates[$font_choice] : $candidates['inter'];
+        $fallback_order = array_merge($selected, $candidates['inter'], $candidates['arial']);
+
+        foreach ($fallback_order as $path) {
+            if (is_string($path) && file_exists($path)) {
+                return $path;
+            }
+        }
+
+        return '';
+    }
+
+    private static function can_render_with_ttf($font_path, $font_size = 20) {
+        if (!self::can_use_ttf() || !is_string($font_path) || $font_path === '') {
+            return false;
+        }
+        if (!file_exists($font_path) || !is_readable($font_path)) {
+            return false;
+        }
+        if (filesize($font_path) <= 0) {
+            return false;
+        }
+        $probe = @imagettfbbox((float) $font_size, 0, $font_path, 'PixelStamp 123');
+        return $probe !== false;
+    }
+
+    private static function resolve_working_ttf_font($font_choice, $font_size = 20) {
+        $candidate = self::resolve_font_path($font_choice);
+        if (self::can_render_with_ttf($candidate, $font_size)) {
+            return $candidate;
+        }
+
+        $candidates = self::get_font_candidates();
+        foreach ($candidates as $paths) {
+            foreach ($paths as $path) {
+                if (self::can_render_with_ttf($path, $font_size)) {
+                    return $path;
+                }
+            }
+        }
+
+        return '';
+    }
+
+    public static function get_font_candidates() {
+        $plugin_fonts = PIXELSTAMP_WATERMARK_PATH . 'assets/fonts/';
+        return [
+            'inter' => [
+                $plugin_fonts . 'Inter-Bold.ttf',
+                '/System/Library/Fonts/Supplemental/Arial Bold.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+                '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf',
+                'C:\Windows\Fonts\arialbd.ttf',
+            ],
+            'arial' => [
+                $plugin_fonts . 'Arial.ttf',
+                '/System/Library/Fonts/Supplemental/Arial.ttf',
+                '/Library/Fonts/Arial.ttf',
+                '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                '/usr/share/fonts/dejavu/DejaVuSans.ttf',
+                'C:\Windows\Fonts\arial.ttf',
+            ],
+            'times' => [
+                $plugin_fonts . 'Times.ttf',
+                '/System/Library/Fonts/Supplemental/Times New Roman.ttf',
+                '/Library/Fonts/Times New Roman.ttf',
+                '/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf',
+                '/usr/share/fonts/dejavu/DejaVuSerif.ttf',
+                'C:\Windows\Fonts\times.ttf',
+            ],
+            'courier' => [
+                $plugin_fonts . 'Courier.ttf',
+                '/System/Library/Fonts/Supplemental/Courier New.ttf',
+                '/Library/Fonts/Courier New.ttf',
+                '/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf',
+                '/usr/share/fonts/dejavu/DejaVuSansMono.ttf',
+                'C:\Windows\Fonts\cour.ttf',
+            ],
+        ];
+    }
+
+    public static function get_system_status() {
+        $gd_loaded = extension_loaded('gd');
+        $gd_info = $gd_loaded && function_exists('gd_info') ? gd_info() : [];
+        $freetype_supported = !empty($gd_info['FreeType Support']);
+
+        $status = [
+            'gd_loaded' => $gd_loaded,
+            'freetype_support' => $freetype_supported,
+            'ttf_functions' => self::can_use_ttf(),
+            'ttf_probe_ok' => false,
+            'ttf_probe_message' => '',
+            'fonts' => [],
+        ];
+
+        $resolved = self::resolve_font_path('inter');
+        $working = self::resolve_working_ttf_font('inter', 20);
+        if (!$gd_loaded) {
+            $status['ttf_probe_message'] = 'PHP GD extension is not loaded.';
+        } elseif (!$freetype_supported) {
+            $status['ttf_probe_message'] = 'GD is loaded but FreeType Support is disabled.';
+        } elseif (!$status['ttf_functions']) {
+            $status['ttf_probe_message'] = 'imagettftext/imagettfbbox functions are unavailable.';
+        } elseif ($resolved === '' || !file_exists($resolved)) {
+            $status['ttf_probe_message'] = 'No usable TTF font file found for runtime probe.';
+        } elseif ($working !== '') {
+            $status['ttf_probe_ok'] = true;
+            if ($working === $resolved) {
+                $status['ttf_probe_message'] = 'TTF rendering probe passed.';
+            } else {
+                $status['ttf_probe_message'] = 'Default Inter font failed probe; using fallback TTF at runtime.';
+            }
+        } else {
+            $status['ttf_probe_message'] = 'TTF probe failed for all discovered font files.';
+        }
+
+        if ($status['ttf_probe_ok'] && $status['ttf_probe_message'] === '') {
+            $status['ttf_probe_message'] = 'TTF rendering probe passed.';
+        }
+
+        $candidates = self::get_font_candidates();
+        foreach ($candidates as $key => $paths) {
+            $found = '';
+            foreach ($paths as $path) {
+                if (is_string($path) && file_exists($path)) {
+                    $found = $path;
+                    break;
+                }
+            }
+            $status['fonts'][$key] = [
+                'found' => ($found !== ''),
+                'path' => $found,
+            ];
+        }
+
+        return $status;
     }
 }

@@ -2,6 +2,9 @@ jQuery(document).ready(function($) {
     let mediaUploader;
     let selectedIds = [];
     const i18n = pixelstamp_vars.i18n;
+    const capabilities = pixelstamp_vars.capabilities || {};
+    const ttfAvailable = capabilities.ttf === 1 || capabilities.ttf === '1';
+    let fallbackNoticeShown = false;
 
     // Elements
     const $previewPlaceholder = $('#preview-placeholder');
@@ -68,8 +71,19 @@ jQuery(document).ready(function($) {
         'courier': "'Courier New', monospace"
     };
 
+    function normalizeTextForFallback(text) {
+        if (!text) return 'PixelStamp';
+        let normalized = String(text)
+            .replaceAll('©', '(c)')
+            .replaceAll('®', '(R)')
+            .replaceAll('™', '(TM)');
+        normalized = normalized.replace(/[^\x20-\x7E\n]/g, '');
+        return normalized.trim() !== '' ? normalized : 'PixelStamp';
+    }
+
     function updateLivePreview() {
-        const text = $('#wm-text').val();
+        const rawText = $('#wm-text').val();
+        const text = ttfAvailable ? rawText : normalizeTextForFallback(rawText);
         const font = $('#wm-font').val();
         const sizePercent = parseInt($('#wm-size').val()) || 20;
         const opacity = $('#wm-opacity').val();
@@ -94,12 +108,17 @@ jQuery(document).ready(function($) {
 
         // Calculate shared styles
         const styleObj = {
-            'font-family': fontMap[font] || 'sans-serif',
+            'font-family': ttfAvailable ? (fontMap[font] || 'sans-serif') : "'Courier New', monospace",
             'color': color,
             'opacity': opacity,
             'background-color': useBox ? hexToRgba(boxBg, opacity) : 'transparent',
             'border': useBox ? '1px solid ' + boxBorder : 'none'
         };
+
+        if (!ttfAvailable && !fallbackNoticeShown) {
+            fallbackNoticeShown = true;
+            showToast(i18n.ttf_unavailable, 'info');
+        }
 
         // Update dedicated watermark preview (always runs)
         const $focusedOverlay = $('#focused-watermark-overlay');

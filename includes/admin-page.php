@@ -1,5 +1,9 @@
 <?php if (!defined('ABSPATH'))
-    exit; ?>
+    exit;
+
+$system_status = PixelStampProcessor::get_system_status();
+$ttf_ready = !empty($system_status['ttf_functions']) && !empty($system_status['ttf_probe_ok']);
+?>
 
 <div class="wrap pixelstamp-wrap">
     <h1><?php esc_html_e('PixelStamp Watermark – Watermarking', 'pixelstamp-watermark'); ?></h1>
@@ -91,6 +95,79 @@
                                 <p id="pixelstamp-idle-status" style="font-size: 12px; color: #666; margin: 0;">
                                     <?php esc_html_e('Ready. Apply a watermark to see progress here.', 'pixelstamp-watermark'); ?>
                                 </p>
+                            </div>
+                        </div>
+
+                        <!-- System Status -->
+                        <div class="postbox">
+                            <h2 class="hndle"><span><?php esc_html_e('System Status', 'pixelstamp-watermark'); ?></span></h2>
+                            <div class="inside">
+                                <p style="margin: 0 0 10px; font-size: 13px;">
+                                    <strong><?php esc_html_e('TTF Rendering:', 'pixelstamp-watermark'); ?></strong>
+                                    <?php if ($ttf_ready): ?>
+                                        <span style="color:#1f7a1f;"><?php esc_html_e('Enabled', 'pixelstamp-watermark'); ?></span>
+                                    <?php else: ?>
+                                        <span style="color:#b32d2e;"><?php esc_html_e('Not fully available', 'pixelstamp-watermark'); ?></span>
+                                    <?php endif; ?>
+                                </p>
+                                <ul style="margin: 0 0 10px 18px; list-style: disc; font-size: 12px;">
+                                    <li>
+                                        <strong><?php esc_html_e('GD extension:', 'pixelstamp-watermark'); ?></strong>
+                                        <?php echo !empty($system_status['gd_loaded']) ? '<span style="color:#1f7a1f;">Loaded</span>' : '<span style="color:#b32d2e;">Missing</span>'; ?>
+                                    </li>
+                                    <li>
+                                        <strong><?php esc_html_e('FreeType support:', 'pixelstamp-watermark'); ?></strong>
+                                        <?php echo !empty($system_status['freetype_support']) ? '<span style="color:#1f7a1f;">Enabled</span>' : '<span style="color:#b32d2e;">Disabled</span>'; ?>
+                                    </li>
+                                    <li>
+                                        <strong><?php esc_html_e('Probe:', 'pixelstamp-watermark'); ?></strong>
+                                        <?php echo esc_html($system_status['ttf_probe_message'] ?? ''); ?>
+                                    </li>
+                                </ul>
+
+                                <p style="margin: 0 0 8px; font-size: 12px; color: #666;">
+                                    <?php esc_html_e('Detected font file for each family:', 'pixelstamp-watermark'); ?>
+                                </p>
+
+                                <ul style="margin: 0 0 10px 18px; list-style: disc; font-size: 12px;">
+                                    <?php
+                                    $labels = [
+                                        'inter' => 'Inter',
+                                        'arial' => 'Arial',
+                                        'times' => 'Times',
+                                        'courier' => 'Courier',
+                                    ];
+                                    foreach ($labels as $key => $label):
+                                        $font_info = $system_status['fonts'][$key] ?? ['found' => false, 'path' => ''];
+                                        ?>
+                                        <li style="margin-bottom: 4px;">
+                                            <strong><?php echo esc_html($label); ?>:</strong>
+                                            <?php if (!empty($font_info['found'])): ?>
+                                                <span style="color:#1f7a1f;"><?php esc_html_e('Found', 'pixelstamp-watermark'); ?></span>
+                                                <br>
+                                                <code style="font-size: 11px;"><?php echo esc_html($font_info['path']); ?></code>
+                                            <?php else: ?>
+                                                <span style="color:#b32d2e;"><?php esc_html_e('Not found', 'pixelstamp-watermark'); ?></span>
+                                            <?php endif; ?>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+
+                                <?php if (!$ttf_ready): ?>
+                                    <div style="padding:10px; border-left:4px solid #b32d2e; background:#fff5f5; font-size:12px;">
+                                        <strong><?php esc_html_e('How to fix:', 'pixelstamp-watermark'); ?></strong>
+                                        <ol style="margin: 8px 0 0 18px;">
+                                            <li><?php esc_html_e('Enable PHP GD with FreeType support on your server.', 'pixelstamp-watermark'); ?></li>
+                                            <li><?php esc_html_e('Add real TTF files in plugin folder:', 'pixelstamp-watermark'); ?> <code>assets/fonts/Arial.ttf</code>, <code>assets/fonts/Times.ttf</code>, <code>assets/fonts/Courier.ttf</code>.</li>
+                                            <li><?php esc_html_e('Reload this page and confirm TTF Rendering shows Enabled.', 'pixelstamp-watermark'); ?></li>
+                                            <li><?php esc_html_e('Re-apply watermark to regenerate affected images/thumbnails.', 'pixelstamp-watermark'); ?></li>
+                                        </ol>
+                                    </div>
+                                <?php else: ?>
+                                    <p style="margin: 0; font-size: 12px; color: #666;">
+                                        <?php esc_html_e('TTF rendering is active. Selected font families should match applied watermark output.', 'pixelstamp-watermark'); ?>
+                                    </p>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
