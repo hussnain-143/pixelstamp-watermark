@@ -247,6 +247,74 @@ class PixelStampProcessor {
         return $probe !== false;
     }
 
+    /**
+     * Probe a single font file and return detailed result with any captured error.
+     */
+    private static function probe_ttf_font($font_path, $font_size = 20) {
+        $result = [
+            'ok'    => false,
+            'error' => '',
+        ];
+
+        if (!self::can_use_ttf()) {
+            $result['error'] = 'imagettfbbox/imagettftext functions missing';
+            return $result;
+        }
+        if (!is_string($font_path) || $font_path === '') {
+            $result['error'] = 'Empty font path';
+            return $result;
+        }
+        if (!file_exists($font_path)) {
+            $result['error'] = 'File does not exist';
+            return $result;
+        }
+        if (!is_readable($font_path)) {
+            $result['error'] = 'File not readable (permission denied)';
+            return $result;
+        }
+        $fsize = filesize($font_path);
+        if ($fsize <= 0) {
+            $result['error'] = 'File is empty (0 bytes)';
+            return $result;
+        }
+
+        // Read magic bytes to validate TTF format.
+        $fh = @fopen($font_path, 'rb');
+        if ($fh) {
+            $magic = fread($fh, 4);
+            fclose($fh);
+            // Valid TTF: 00 01 00 00; Valid OTF: 4F 54 54 4F ("OTTO")
+            $is_ttf = ($magic === "\x00\x01\x00\x00");
+            $is_otf = ($magic === "OTTO");
+            if (!$is_ttf && !$is_otf) {
+                $hex = strtoupper(bin2hex($magic));
+                $result['error'] = "Not a valid TTF/OTF file (magic bytes: {$hex})";
+                return $result;
+            }
+        }
+
+        // Capture the actual error from imagettfbbox using a temporary error handler.
+        $captured_error = '';
+        set_error_handler(function ($errno, $errstr) use (&$captured_error) {
+            $captured_error = $errstr;
+            return true; // Suppress the error.
+        });
+
+        $probe = imagettfbbox((float) $font_size, 0, $font_path, 'PixelStamp 123');
+
+        restore_error_handler();
+
+        if ($probe !== false) {
+            $result['ok'] = true;
+        } else {
+            $result['error'] = $captured_error !== ''
+                ? $captured_error
+                : 'imagettfbbox returned false (unknown reason)';
+        }
+
+        return $result;
+    }
+
     private static function resolve_working_ttf_font($font_choice, $font_size = 20) {
         $candidate = self::resolve_font_path($font_choice);
         if (self::can_render_with_ttf($candidate, $font_size)) {
@@ -273,7 +341,7 @@ class PixelStampProcessor {
                 '/System/Library/Fonts/Supplemental/Arial Bold.ttf',
                 '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
                 '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf',
-                'C:\Windows\Fonts\arialbd.ttf',
+                'C:\\Windows\\Fonts\\arialbd.ttf',
             ],
             'arial' => [
                 $plugin_fonts . 'Arial.ttf',
@@ -282,7 +350,7 @@ class PixelStampProcessor {
                 '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
                 '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
                 '/usr/share/fonts/dejavu/DejaVuSans.ttf',
-                'C:\Windows\Fonts\arial.ttf',
+                'C:\\Windows\\Fonts\\arial.ttf',
             ],
             'times' => [
                 $plugin_fonts . 'Times.ttf',
@@ -291,7 +359,7 @@ class PixelStampProcessor {
                 '/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf',
                 '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf',
                 '/usr/share/fonts/dejavu/DejaVuSerif.ttf',
-                'C:\Windows\Fonts\times.ttf',
+                'C:\\Windows\\Fonts\\times.ttf',
             ],
             'courier' => [
                 $plugin_fonts . 'Courier.ttf',
@@ -300,7 +368,7 @@ class PixelStampProcessor {
                 '/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf',
                 '/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf',
                 '/usr/share/fonts/dejavu/DejaVuSansMono.ttf',
-                'C:\Windows\Fonts\cour.ttf',
+                'C:\\Windows\\Fonts\\cour.ttf',
             ],
         ];
     }
@@ -316,6 +384,7 @@ class PixelStampProcessor {
             'ttf_functions' => self::can_use_ttf(),
             'ttf_probe_ok' => false,
             'ttf_probe_message' => '',
+            'ttf_probe_error' => '',
             'fonts' => [],
         ];
 
@@ -344,6 +413,7 @@ class PixelStampProcessor {
             $status['ttf_probe_message'] = 'TTF rendering probe passed.';
         }
 
+        // Per-font detailed probe with error capture.
         $candidates = self::get_font_candidates();
         foreach ($candidates as $key => $paths) {
             $found = '';
@@ -353,9 +423,17 @@ class PixelStampProcessor {
                     break;
                 }
             }
+
+            $probe_result = ['ok' => false, 'error' => ''];
+            if ($found !== '') {
+                $probe_result = self::probe_ttf_font($found, 20);
+            }
+
             $status['fonts'][$key] = [
-                'found' => ($found !== ''),
-                'path' => $found,
+                'found'       => ($found !== ''),
+                'path'        => $found,
+                'probe_ok'    => $probe_result['ok'],
+                'probe_error' => $probe_result['error'],
             ];
         }
 

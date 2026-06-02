@@ -138,12 +138,18 @@ $ttf_ready = !empty($system_status['ttf_functions']) && !empty($system_status['t
                                         'courier' => 'Courier',
                                     ];
                                     foreach ($labels as $key => $label):
-                                        $font_info = $system_status['fonts'][$key] ?? ['found' => false, 'path' => ''];
+                                        $font_info = $system_status['fonts'][$key] ?? ['found' => false, 'path' => '', 'probe_ok' => false, 'probe_error' => ''];
                                         ?>
-                                        <li style="margin-bottom: 4px;">
+                                        <li style="margin-bottom: 6px;">
                                             <strong><?php echo esc_html($label); ?>:</strong>
                                             <?php if (!empty($font_info['found'])): ?>
                                                 <span style="color:#1f7a1f;"><?php esc_html_e('Found', 'pixelstamp-watermark'); ?></span>
+                                                <?php if (!empty($font_info['probe_ok'])): ?>
+                                                    — <span style="color:#1f7a1f;">Probe ✓</span>
+                                                <?php elseif (!empty($font_info['probe_error'])): ?>
+                                                    — <span style="color:#b32d2e;">Probe ✗</span>
+                                                    <br><code style="font-size: 11px; color:#b32d2e;"><?php echo esc_html($font_info['probe_error']); ?></code>
+                                                <?php endif; ?>
                                                 <br>
                                                 <code style="font-size: 11px;"><?php echo esc_html($font_info['path']); ?></code>
                                             <?php else: ?>
