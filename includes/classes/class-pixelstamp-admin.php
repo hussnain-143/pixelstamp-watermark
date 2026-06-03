@@ -47,6 +47,9 @@ class PixelStampWatermarkAdmin {
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce'    => wp_create_nonce('pixelstamp_nonce'),
             'settings' => get_option('pixelstamp_settings', $this->plugin->get_default_settings()),
+            'capabilities' => [
+                'ttf' => PixelStampProcessor::can_use_ttf() ? 1 : 0,
+            ],
             'i18n'     => [
                 'select_title' => __('Select Images to Watermark', 'pixelstamp-watermark'),
                 'select_btn'   => __('Select Images', 'pixelstamp-watermark'),
@@ -66,7 +69,8 @@ class PixelStampWatermarkAdmin {
                 'applying'     => __('Applying watermark...', 'pixelstamp-watermark'),
                 'applying_all' => __('Applying watermark to all images...', 'pixelstamp-watermark'),
                 'restoring'    => __('Restoring originals...', 'pixelstamp-watermark'),
-                'no_images'    => __('Please select at least one image.', 'pixelstamp-watermark')
+                'no_images'    => __('Please select at least one image.', 'pixelstamp-watermark'),
+                'ttf_unavailable' => __('Server TTF rendering is unavailable, so final watermark uses a basic fallback font. Font family and some symbols may differ.', 'pixelstamp-watermark')
             ]
         ]);
     }
