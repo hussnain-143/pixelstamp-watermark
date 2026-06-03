@@ -13,6 +13,11 @@ jQuery(document).ready(function($) {
     const $previewImgAfter = $('#preview-img-after');
     const $watermarkOverlay = $('#watermark-preview-overlay');
 
+    // Automatically update preview on image load (handles network/render latency)
+    $previewImgAfter.on('load', function() {
+        updateLivePreview();
+    });
+
 
     // Media Uploader
     $('#select-images-btn').on('click', function(e) {
@@ -124,16 +129,16 @@ jQuery(document).ready(function($) {
         const $focusedOverlay = $('#focused-watermark-overlay');
         $focusedOverlay.text(text);
         const focusedWidth = $('#focused-watermark-preview-container').width() || 300;
-        const focusedFontSize = (focusedWidth * sizePercent) / 400;
-        const focusedPadding = (focusedWidth / 1000) * boxPadding;
-        const focusedRadius = (focusedWidth / 1000) * boxRadius;
+        const focusedFontSize = (focusedWidth * sizePercent) / 400 * scale;
+        const focusedPadding = (focusedWidth / 1000) * boxPadding * scale;
+        const focusedRadius = (focusedWidth / 1000) * boxRadius * scale;
 
         $focusedOverlay.css({
             ...styleObj,
             'font-size': Math.max(focusedFontSize, 8) + 'px',
             'padding': useBox ? focusedPadding + 'px' : '0',
             'border-radius': useBox ? focusedRadius + 'px' : '0',
-            'transform': `rotate(${rotation}deg) scale(${scale})`
+            'transform': `rotate(${rotation}deg)`
         });
 
         // Early return for main preview if no image is visible
@@ -145,9 +150,9 @@ jQuery(document).ready(function($) {
         // Update main preview
         $watermarkOverlay.show().text(text);
         const displayedWidth = $previewImgAfter.width();
-        const previewFontSize = (displayedWidth * sizePercent) / 400;
-        const previewPadding = (displayedWidth / 1000) * boxPadding;
-        const previewRadius = (displayedWidth / 1000) * boxRadius;
+        const previewFontSize = (displayedWidth * sizePercent) / 400 * scale;
+        const previewPadding = (displayedWidth / 1000) * boxPadding * scale;
+        const previewRadius = (displayedWidth / 1000) * boxRadius * scale;
 
         // Base styles without transform (will be added separately)
         $watermarkOverlay.css({
@@ -159,42 +164,44 @@ jQuery(document).ready(function($) {
         });
 
         // Position logic with offset and transform
-        const margin = 8;
-        let transformStr = `rotate(${rotation}deg) scale(${scale})`;
+        const previewMargin = displayedWidth * 0.02;
+        const previewOffsetX = (displayedWidth / 400) * offsetX;
+        const previewOffsetY = (displayedWidth / 400) * offsetY;
+        let transformStr = `rotate(${rotation}deg)`;
         
         switch (position) {
             case 'top-left': 
                 $watermarkOverlay.css({ 
-                    'top': (margin + offsetY) + 'px', 
-                    'left': (margin + offsetX) + 'px',
+                    'top': (previewMargin + previewOffsetY) + 'px', 
+                    'left': (previewMargin + previewOffsetX) + 'px',
                     'transform': transformStr
                 }); 
                 break;
             case 'top-right': 
                 $watermarkOverlay.css({ 
-                    'top': (margin + offsetY) + 'px', 
-                    'right': (margin + offsetX) + 'px',
+                    'top': (previewMargin + previewOffsetY) + 'px', 
+                    'right': (previewMargin + previewOffsetX) + 'px',
                     'transform': transformStr
                 }); 
                 break;
             case 'bottom-left': 
                 $watermarkOverlay.css({ 
-                    'bottom': (margin + offsetY) + 'px', 
-                    'left': (margin + offsetX) + 'px',
+                    'bottom': (previewMargin + previewOffsetY) + 'px', 
+                    'left': (previewMargin + previewOffsetX) + 'px',
                     'transform': transformStr
                 }); 
                 break;
             case 'bottom-right': 
                 $watermarkOverlay.css({ 
-                    'bottom': (margin + offsetY) + 'px', 
-                    'right': (margin + offsetX) + 'px',
+                    'bottom': (previewMargin + previewOffsetY) + 'px', 
+                    'right': (previewMargin + previewOffsetX) + 'px',
                     'transform': transformStr
                 }); 
                 break;
             case 'center': 
                 $watermarkOverlay.css({ 
                     'top': '50%', 'left': '50%', 
-                    'transform': `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px)) rotate(${rotation}deg) scale(${scale})`
+                    'transform': `translate(calc(-50% + ${previewOffsetX}px), calc(-50% + ${previewOffsetY}px)) rotate(${rotation}deg)`
                 }); 
                 break;
         }
@@ -332,8 +339,10 @@ jQuery(document).ready(function($) {
     }
 
     function showProgress(current, total, id) {
+        const $progress = $('#pixelstamp-progress');
+        if (!$progress.length) return;
         const pct = total > 0 ? Math.round((current / total) * 100) : 0;
-        $('#pixelstamp-progress').show();
+        $progress.show();
         $('#pixelstamp-idle-status').hide();
         $('#pixelstamp-progress-fill').css('width', pct + '%');
         $('.progress-bar').attr('aria-valuenow', pct);
@@ -343,7 +352,9 @@ jQuery(document).ready(function($) {
     }
 
     function hideProgress() {
-        $('#pixelstamp-progress').hide();
+        const $progress = $('#pixelstamp-progress');
+        if (!$progress.length) return;
+        $progress.hide();
         $('#pixelstamp-idle-status').show();
         $('#pixelstamp-progress-fill').css('width', '0%');
         $('.progress-bar').attr('aria-valuenow', 0);
