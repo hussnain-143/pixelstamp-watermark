@@ -39,7 +39,6 @@ class PixelStampProcessor {
         }
         $font_choice = $settings['font'] ?? 'inter';
         $lines = explode("\n", $text);
-        $size_percent = intval($settings['size']) / 100;
         $opacity = floatval($settings['opacity']);
         $color_hex = $settings['color'];
         $position = $settings['position'];
@@ -48,14 +47,24 @@ class PixelStampProcessor {
         $box_border_hex = $settings['box_border'] ?? '#ffffff';
         $box_padding_val = intval($settings['box_padding'] ?? 10);
         $box_radius_val = intval($settings['box_radius'] ?? 0);
+        $offset_x = intval($settings['offset_x'] ?? 0);
+        $offset_y = intval($settings['offset_y'] ?? 0);
+        $rotation = intval($settings['rotation'] ?? 0);
+        $scale = floatval($settings['scale'] ?? 1);
+        if ($scale <= 0) $scale = 1;
 
-        // Calculate font size (more sane: percentage of image width)
+        // Calculate font size — matches preview: (width * size) / 400
         $font_size = ($width * intval($settings['size'] ?? 20)) / 400;
         if ($font_size < 10) $font_size = 10; // Minimum size
 
+        // Apply scale to font size
+        $font_size = $font_size * $scale;
+
+        // Convert to points for GD rendering (assumes standard 96 DPI)
+        $font_size_pt = $font_size * 0.75;
 
         // Font Selection (supports plugin fonts + common OS font locations).
-        $font_path = self::resolve_working_ttf_font($font_choice, $font_size);
+        $font_path = self::resolve_working_ttf_font($font_choice, $font_size_pt);
         $use_ttf = ($font_path !== '');
 
         // Colors
@@ -68,13 +77,13 @@ class PixelStampProcessor {
         $border_rgb = self::hex2rgb($box_border_hex);
         $border_color = imagecolorallocatealpha($image, $border_rgb[0], $border_rgb[1], $border_rgb[2], (1 - $opacity) * 127);
 
-        // Measure dimensions
+        // Measure dimensions — line-height 1.4 matches CSS .watermark-overlay
         $max_line_width = 0;
-        $line_height = $font_size * 1.5;
+        $line_height = $font_size * 1.4;
 
         foreach ($lines as $line) {
             if ($use_ttf) {
-                $bbox = @imagettfbbox($font_size, 0, $font_path, $line);
+                $bbox = @imagettfbbox($font_size_pt, 0, $font_path, $line);
                 if ($bbox !== false) {
                     $w = abs($bbox[2] - $bbox[0]);
                 } else {
@@ -88,69 +97,109 @@ class PixelStampProcessor {
 
         $total_height = count($lines) * $line_height;
 
-        // Relative Padding and Margin
-        $padding = ($width / 1000) * $box_padding_val;
-        $radius = ($width / 1000) * $box_radius_val;
-        $margin = ($width / 100); // 1% margin from edge
+        // Relative Padding and Margin — matches preview proportions
+        $padding = ($width / 1000) * $box_padding_val * $scale;
+        $radius = ($width / 1000) * $box_radius_val * $scale;
+        // Margin: preview uses 8px at display size. For proportional match,
+        // use 2% of image width (equivalent to ~8px at typical preview widths)
+        $margin = $width * 0.02;
+
+        // Scale offsets proportionally to image width
+        // Preview offsets are in CSS pixels relative to displayed image
+        // Convert to actual image pixels
+        $scaled_offset_x = ($width / 400) * $offset_x;
+        $scaled_offset_y = ($width / 400) * $offset_y;
 
         $box_w = $max_line_width + ($padding * 2);
         $box_h = $total_height + ($padding * 2);
 
-        // Position
+        // Position — matches preview switch/case logic
         switch ($position) {
             case 'top-left':
-                $x = $margin; $y = $margin; break;
+                $x = $margin + $scaled_offset_x;
+                $y = $margin + $scaled_offset_y;
+                break;
             case 'top-right':
-                $x = $width - $box_w - $margin; $y = $margin; break;
+                $x = $width - $box_w - $margin + $scaled_offset_x;
+                $y = $margin + $scaled_offset_y;
+                break;
             case 'bottom-left':
-                $x = $margin; $y = $height - $box_h - $margin; break;
+                $x = $margin + $scaled_offset_x;
+                $y = $height - $box_h - $margin + $scaled_offset_y;
+                break;
             case 'bottom-right':
-                $x = $width - $box_w - $margin; $y = $height - $box_h - $margin; break;
+                $x = $width - $box_w - $margin + $scaled_offset_x;
+                $y = $height - $box_h - $margin + $scaled_offset_y;
+                break;
             case 'center':
-                $x = ($width - $box_w) / 2; $y = ($height - $box_h) / 2; break;
+                $x = ($width - $box_w) / 2 + $scaled_offset_x;
+                $y = ($height - $box_h) / 2 + $scaled_offset_y;
+                break;
             default:
-                $x = $width - $box_w - $margin; $y = $height - $box_h - $margin;
+                $x = $width - $box_w - $margin + $scaled_offset_x;
+                $y = $height - $box_h - $margin + $scaled_offset_y;
         }
 
-        // Draw Box
-        if ($use_box) {
-            if ($radius > 0) {
-                self::imagefilledroundedrectangle($image, $x, $y, $x + $box_w, $y + $box_h, $radius, $box_color);
-                self::imageroundedrectangle($image, $x, $y, $x + $box_w, $y + $box_h, $radius, $border_color);
-            } else {
-                imagefilledrectangle($image, $x, $y, $x + $box_w, $y + $box_h, $box_color);
-                imagerectangle($image, $x, $y, $x + $box_w, $y + $box_h, $border_color);
-            }
-        }
+        // If rotation is needed, create a temporary canvas, draw on it, rotate, then merge
+        if ($rotation != 0 && function_exists('imagerotate')) {
+            // Create temp canvas for box + text
+            $canvas_w = (int)ceil($box_w) + 2;
+            $canvas_h = (int)ceil($box_h) + 2;
+            $temp = imagecreatetruecolor($canvas_w, $canvas_h);
+            imagesavealpha($temp, true);
+            imagealphablending($temp, false);
+            $transparent = imagecolorallocatealpha($temp, 0, 0, 0, 127);
+            imagefill($temp, 0, 0, $transparent);
+            imagealphablending($temp, true);
 
-        // Draw Text
-        foreach ($lines as $i => $line) {
-            // Adjust vertical alignment for TTF
-            $ly = $y + $padding + ($i * $line_height) + ($use_ttf ? ($font_size * 1.1) : 0);
-            if ($use_ttf) {
-                $bbox = @imagettfbbox($font_size, 0, $font_path, $line);
-                if ($bbox !== false) {
-                    $lw = abs($bbox[2] - $bbox[0]);
-                    $lx = $x + $padding + ($max_line_width - $lw) / 2;
-                    $drawn = @imagettftext($image, $font_size, 0, $lx, $ly, $text_color, $font_path, $line);
-                    if ($drawn === false) {
-                        $fallback = self::normalize_line_for_builtin_font($line);
-                        $lw = strlen($fallback) * imagefontwidth(5);
-                        $lx = $x + $padding + ($max_line_width - $lw) / 2;
-                        imagestring($image, 5, $lx, $ly, $fallback, $text_color);
-                    }
+            // Allocate colors on temp canvas
+            $temp_text_color = imagecolorallocatealpha($temp, $rgb[0], $rgb[1], $rgb[2], (1 - $opacity) * 127);
+            $temp_box_color = imagecolorallocatealpha($temp, $box_rgb[0], $box_rgb[1], $box_rgb[2], (1 - $opacity) * 127);
+            $temp_border_color = imagecolorallocatealpha($temp, $border_rgb[0], $border_rgb[1], $border_rgb[2], (1 - $opacity) * 127);
+
+            // Draw box on temp
+            if ($use_box) {
+                if ($radius > 0) {
+                    self::imagefilledroundedrectangle($temp, 0, 0, $box_w, $box_h, $radius, $temp_box_color);
+                    self::imageroundedrectangle($temp, 0, 0, $box_w, $box_h, $radius, $temp_border_color);
                 } else {
-                    $fallback = self::normalize_line_for_builtin_font($line);
-                    $lw = strlen($fallback) * imagefontwidth(5);
-                    $lx = $x + $padding + ($max_line_width - $lw) / 2;
-                    imagestring($image, 5, $lx, $ly, $fallback, $text_color);
+                    imagefilledrectangle($temp, 0, 0, (int)$box_w, (int)$box_h, $temp_box_color);
+                    imagerectangle($temp, 0, 0, (int)$box_w, (int)$box_h, $temp_border_color);
                 }
-            } else {
-                $fallback = self::normalize_line_for_builtin_font($line);
-                $lw = strlen($fallback) * imagefontwidth(5);
-                $lx = $x + $padding + ($max_line_width - $lw) / 2;
-                imagestring($image, 5, $lx, $ly, $fallback, $text_color);
             }
+
+            // Draw text on temp
+            self::draw_text_lines($temp, $lines, $use_ttf, $font_size, $font_path, 0, $padding, $line_height, $max_line_width, $temp_text_color);
+
+            // Rotate the temp canvas
+            $rotated = imagerotate($temp, -$rotation, $transparent);
+            imagesavealpha($rotated, true);
+            imagedestroy($temp);
+
+            // Merge rotated canvas onto main image, centered on the original position
+            $rot_w = imagesx($rotated);
+            $rot_h = imagesy($rotated);
+            $paste_x = (int)($x + $box_w / 2 - $rot_w / 2);
+            $paste_y = (int)($y + $box_h / 2 - $rot_h / 2);
+
+            imagealphablending($image, true);
+            imagecopy($image, $rotated, $paste_x, $paste_y, 0, 0, $rot_w, $rot_h);
+            imagedestroy($rotated);
+        } else {
+            // No rotation — draw directly on image
+            // Draw Box
+            if ($use_box) {
+                if ($radius > 0) {
+                    self::imagefilledroundedrectangle($image, $x, $y, $x + $box_w, $y + $box_h, $radius, $box_color);
+                    self::imageroundedrectangle($image, $x, $y, $x + $box_w, $y + $box_h, $radius, $border_color);
+                } else {
+                    imagefilledrectangle($image, (int)$x, (int)$y, (int)($x + $box_w), (int)($y + $box_h), $box_color);
+                    imagerectangle($image, (int)$x, (int)$y, (int)($x + $box_w), (int)($y + $box_h), $border_color);
+                }
+            }
+
+            // Draw Text
+            self::draw_text_lines($image, $lines, $use_ttf, $font_size, $font_path, $x, $padding, $line_height, $max_line_width, $text_color);
         }
 
         // Save back
@@ -168,6 +217,42 @@ class PixelStampProcessor {
 
         imagedestroy($image);
         return true;
+    }
+
+    /**
+     * Draw text lines on an image resource.
+     * Extracted to share between rotated/non-rotated code paths.
+     */
+    private static function draw_text_lines($image, $lines, $use_ttf, $font_size, $font_path, $base_x, $padding, $line_height, $max_line_width, $text_color) {
+        $font_size_pt = $font_size * 0.75;
+        $y_offset = $padding;
+        foreach ($lines as $i => $line) {
+            $ly = $y_offset + ($i * $line_height) + ($use_ttf ? ($font_size * 1.1) : 0);
+            if ($use_ttf) {
+                $bbox = @imagettfbbox($font_size_pt, 0, $font_path, $line);
+                if ($bbox !== false) {
+                    $lw = abs($bbox[2] - $bbox[0]);
+                    $lx = $base_x + $padding + ($max_line_width - $lw) / 2;
+                    $drawn = @imagettftext($image, $font_size_pt, 0, (int)$lx, (int)$ly, $text_color, $font_path, $line);
+                    if ($drawn === false) {
+                        $fallback = self::normalize_line_for_builtin_font($line);
+                        $lw = strlen($fallback) * imagefontwidth(5);
+                        $lx = $base_x + $padding + ($max_line_width - $lw) / 2;
+                        imagestring($image, 5, (int)$lx, (int)$ly, $fallback, $text_color);
+                    }
+                } else {
+                    $fallback = self::normalize_line_for_builtin_font($line);
+                    $lw = strlen($fallback) * imagefontwidth(5);
+                    $lx = $base_x + $padding + ($max_line_width - $lw) / 2;
+                    imagestring($image, 5, (int)$lx, (int)$ly, $fallback, $text_color);
+                }
+            } else {
+                $fallback = self::normalize_line_for_builtin_font($line);
+                $lw = strlen($fallback) * imagefontwidth(5);
+                $lx = $base_x + $padding + ($max_line_width - $lw) / 2;
+                imagestring($image, 5, (int)$lx, (int)$ly, $fallback, $text_color);
+            }
+        }
     }
 
     private static function imagefilledroundedrectangle($img, $x1, $y1, $x2, $y2, $radius, $color) {
