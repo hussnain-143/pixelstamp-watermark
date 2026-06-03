@@ -142,16 +142,19 @@ class PixelStampProcessor {
                 } else {
                     $fallback = self::normalize_line_for_builtin_font($line);
                     $lw = strlen($fallback) * imagefontwidth(5);
-                    $lx = $x + $padding + ($max_line_width - $lw) / 2;
-                    imagestring($image, 5, $lx, $ly, $fallback, $text_color);
+                    $lx = $padding + ($max_line_width - $lw) / 2;
+                    imagestring($temp_box, 5, (int)$lx, (int)$ly, $fallback, $text_color);
                 }
             } else {
                 $fallback = self::normalize_line_for_builtin_font($line);
                 $lw = strlen($fallback) * imagefontwidth(5);
-                $lx = $x + $padding + ($max_line_width - $lw) / 2;
-                imagestring($image, 5, $lx, $ly, $fallback, $text_color);
+                $lx = $padding + ($max_line_width - $lw) / 2;
+                imagestring($temp_box, 5, (int)$lx, (int)$ly, $fallback, $text_color);
             }
         }
+
+        imagecopymerge($image, $temp_box, (int)$x, (int)$y, 0, 0, (int)ceil($box_w), (int)ceil($box_h), 100);
+        imagedestroy($temp_box);
 
         // Save back
         switch ($mime) {
