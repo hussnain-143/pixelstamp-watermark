@@ -1,10 +1,10 @@
 === PixelStamp Watermark ===
 Contributors: ahmed143
 Tags: watermark, images, photo protection, auto watermark, photography
-Requires at least: 7.0
-Tested up to: 7
+Requires at least: 5.0
+Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.1.7
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -57,7 +57,7 @@ The plugin uses a non-destructive workflow: it creates a secure backup of each o
 
 Before installing, confirm your hosting environment meets these requirements:
 
-* WordPress 7.0 or higher
+* WordPress 5.0 or higher
 * PHP 7.4 or higher (PHP 8.x recommended)
 * PHP GD extension enabled (required for image processing)
 * Writable `wp-content/uploads` directory
@@ -201,7 +201,21 @@ The plugin will not apply an empty watermark and will report an error instead of
 
 Yes. It works with standard WordPress attachments, so images used in posts, pages, builders, and WooCommerce product galleries are affected once processed—provided they use files from the Media Library.
 
+== Screenshots ==
+
+1. PixelStamp admin dashboard with action buttons, global settings, and watermark preview.
+2. Configuration settings panel showing text style, background box, and spacing/offset controls.
+3. Live preview panel with side-by-side before and after watermark comparison.
+4. Example image with a bottom-right text watermark applied.
+
 == Changelog ==
+
+= 1.2.0 =
+* Fixed watermark output not matching the live preview — corrected GD font-size point conversion (was using 0.75x multiplier instead of the correct 4/3x for 96 DPI rendering).
+* Aligned minimum font size between preview (8px) and processor (8px) for consistent results at small sizes.
+* Fixed text baseline positioning in GD rendering for accurate vertical alignment within the watermark box.
+* Added Screenshots section to readme.
+* Updated "Requires at least" to WordPress 5.0 and "Tested up to" to 6.8 for accurate compatibility info.
 
 = 1.1.7 =
 * Fixed watermarks not appearing on front-end and media library thumbnails by regenerating all attachment sizes after apply and restore.
@@ -226,6 +240,9 @@ Yes. It works with standard WordPress attachments, so images used in posts, page
 * Added support for multi-line text and background boxes.
 
 == Upgrade Notice ==
+
+= 1.2.0 =
+Critical fix: applied watermarks now match the live preview exactly. Font size, baseline positioning, and minimum size are all aligned between the preview and the actual GD rendering. Re-apply watermarks to existing images to get the corrected output.
 
 = 1.1.7 =
 Important fix: watermarks now appear on all image sizes (thumbnails, medium, large). Re-apply watermarks to existing images if they still look unmarked. Toast and progress feedback are restored.
