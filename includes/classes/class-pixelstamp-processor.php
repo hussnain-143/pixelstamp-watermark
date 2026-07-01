@@ -123,24 +123,24 @@ class PixelStampProcessor {
                 $y = $margin + $scaled_offset_y;
                 break;
             case 'top-right':
-                $x = $width - $box_w - $margin + $scaled_offset_x;
+                $x = $width - $box_w - $margin - $scaled_offset_x;
                 $y = $margin + $scaled_offset_y;
                 break;
             case 'bottom-left':
                 $x = $margin + $scaled_offset_x;
-                $y = $height - $box_h - $margin + $scaled_offset_y;
+                $y = $height - $box_h - $margin - $scaled_offset_y;
                 break;
             case 'bottom-right':
-                $x = $width - $box_w - $margin + $scaled_offset_x;
-                $y = $height - $box_h - $margin + $scaled_offset_y;
+                $x = $width - $box_w - $margin - $scaled_offset_x;
+                $y = $height - $box_h - $margin - $scaled_offset_y;
                 break;
             case 'center':
                 $x = ($width - $box_w) / 2 + $scaled_offset_x;
                 $y = ($height - $box_h) / 2 + $scaled_offset_y;
                 break;
             default:
-                $x = $width - $box_w - $margin + $scaled_offset_x;
-                $y = $height - $box_h - $margin + $scaled_offset_y;
+                $x = $width - $box_w - $margin - $scaled_offset_x;
+                $y = $height - $box_h - $margin - $scaled_offset_y;
         }
 
         // Apply watermark using a compositing approach that works for ALL image formats.
@@ -288,11 +288,14 @@ class PixelStampProcessor {
         if ($use_ttf) {
             $probe_bbox = @imagettfbbox($font_size_pt, 0, $font_path, 'Hg|Ájy');
             if ($probe_bbox !== false) {
-                // ascent = distance from baseline to top of tallest glyph (negative Y in GD)
-                $ascent = abs($probe_bbox[7] - $probe_bbox[1]); // row7 = bottom-left Y, row1 = top-left Y
-                // Center the text vertically in the line: (line_height - text_height) / 2
+                // GD imagettfbbox: Y=0 is baseline. Index 7 = upper-left Y (negative =
+                // above baseline = ascent). Index 1 = lower-left Y (positive = below
+                // baseline = descent).
+                $ascent = abs($probe_bbox[7]);
                 $text_height = abs($probe_bbox[7] - $probe_bbox[1]);
-                $baseline_offset = ($line_height - $text_height) / 2 + $text_height;
+                // CSS line-height:1.4 adds half-leading equally above and below the
+                // text. Baseline from top of line box = half-leading + ascent.
+                $baseline_offset = ($line_height - $text_height) / 2 + $ascent;
             } else {
                 // Fallback: approximate — baseline sits ~80% down from top of em-square
                 $baseline_offset = $font_size_pt * 1.0;
