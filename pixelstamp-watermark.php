@@ -2,9 +2,9 @@
 /**
  * Plugin Name: PixelStamp Watermark
  * Description: Add customizable text watermarks to your images with auto-watermark on upload, bulk media processing, and original image restoration.
- * Version:           1.1.7
+ * Version:           1.2.0
  * Requires at least: 7.0
- * Tested up to:      7.0
+ * Tested up to:      6.8
  * Author:            Hussnain Ahmed
  * License:           GPL-2.0+
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
@@ -15,7 +15,7 @@
 // Prevent direct access
 if (!defined('ABSPATH')) exit;
 
-define('PIXELSTAMP_WATERMARK_VERSION', '1.1.7');
+define('PIXELSTAMP_WATERMARK_VERSION', '1.2.0');
 define('PIXELSTAMP_WATERMARK_PATH', plugin_dir_path(__FILE__));
 define('PIXELSTAMP_WATERMARK_URL', plugin_dir_url(__FILE__));
 

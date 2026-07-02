@@ -53,29 +53,32 @@ class PixelStampProcessor {
         $scale = floatval($settings['scale'] ?? 1);
         if ($scale <= 0) $scale = 1;
 
-        // Calculate font size — matches preview: (width * size) / 400
+        // Calculate font size — matches preview: (width * size) / 400 * scale
         $font_size = ($width * intval($settings['size'] ?? 20)) / 400;
-        if ($font_size < 10) $font_size = 10; // Minimum size
+        if ($font_size < 8) $font_size = 8; // Minimum size — matches JS preview minimum of 8
 
         // Apply scale to font size
         $font_size = $font_size * $scale;
 
-        // Convert to points for GD rendering (assumes standard 96 DPI)
-        $font_size_pt = $font_size * 0.75;
+        // GD's imagettftext $size parameter behaves as approximate pixel height of the
+        // em-square (it internally uses 72 DPI assumption, but the rendered glyph size
+        // matches the numeric value in pixels). CSS font-size:Xpx also sets the em-square
+        // height to X pixels. So we use $font_size directly — no conversion needed.
+        $font_size_pt = $font_size;
 
         // Font Selection (supports plugin fonts + common OS font locations).
         $font_path = self::resolve_working_ttf_font($font_choice, $font_size_pt);
         $use_ttf = ($font_path !== '');
 
-        // Colors
+        // Colors — resolved here; actual allocation happens on temp canvases with full opacity.
+        // We use imagecopymerge() for opacity compositing because JPEG does NOT support
+        // alpha channels — imagecolorallocatealpha() alpha is silently discarded on save.
         $rgb = self::hex2rgb($color_hex);
-        $text_color = imagecolorallocatealpha($image, $rgb[0], $rgb[1], $rgb[2], (1 - $opacity) * 127);
-
         $box_rgb = self::hex2rgb($box_bg_hex);
-        $box_color = imagecolorallocatealpha($image, $box_rgb[0], $box_rgb[1], $box_rgb[2], (1 - $opacity) * 127);
-
         $border_rgb = self::hex2rgb($box_border_hex);
-        $border_color = imagecolorallocatealpha($image, $border_rgb[0], $border_rgb[1], $border_rgb[2], (1 - $opacity) * 127);
+
+        // Merge percentage for imagecopymerge (0–100)
+        $merge_pct = max(0, min(100, (int)($opacity * 100)));
 
         // Measure dimensions — line-height 1.4 matches CSS .watermark-overlay
         $max_line_width = 0;
@@ -120,31 +123,54 @@ class PixelStampProcessor {
                 $y = $margin + $scaled_offset_y;
                 break;
             case 'top-right':
-                $x = $width - $box_w - $margin + $scaled_offset_x;
+                $x = $width - $box_w - $margin - $scaled_offset_x;
                 $y = $margin + $scaled_offset_y;
                 break;
             case 'bottom-left':
                 $x = $margin + $scaled_offset_x;
-                $y = $height - $box_h - $margin + $scaled_offset_y;
+                $y = $height - $box_h - $margin - $scaled_offset_y;
                 break;
             case 'bottom-right':
-                $x = $width - $box_w - $margin + $scaled_offset_x;
-                $y = $height - $box_h - $margin + $scaled_offset_y;
+                $x = $width - $box_w - $margin - $scaled_offset_x;
+                $y = $height - $box_h - $margin - $scaled_offset_y;
                 break;
             case 'center':
                 $x = ($width - $box_w) / 2 + $scaled_offset_x;
                 $y = ($height - $box_h) / 2 + $scaled_offset_y;
                 break;
             default:
-                $x = $width - $box_w - $margin + $scaled_offset_x;
-                $y = $height - $box_h - $margin + $scaled_offset_y;
+                $x = $width - $box_w - $margin - $scaled_offset_x;
+                $y = $height - $box_h - $margin - $scaled_offset_y;
         }
 
-        // If rotation is needed, create a temporary canvas, draw on it, rotate, then merge
+        // Apply watermark using a compositing approach that works for ALL image formats.
+        //
+        // JPEG does NOT support alpha channels — imagecolorallocatealpha() alpha values
+        // are silently discarded on imagejpeg() save. So we composite via imagecopymerge().
+        //
+        // OPACITY MODEL (must match the JS/CSS preview exactly):
+        //   In admin.js the overlay gets CSS `opacity: <opacity>` on the whole element,
+        //   AND the box background is pre-multiplied via hexToRgba(boxBg, opacity). So the
+        //   effective opacities are:
+        //     - Box background: opacity * opacity  (double-applied)
+        //     - Text + border:  opacity            (single)
+        //
+        //   imagecopymerge() blends the ENTIRE region at one percentage, so we do it in two
+        //   passes on a temp canvas that starts as a copy of the original pixels (so non-drawn
+        //   pixels blend to themselves = unchanged):
+        //     Pass 1: draw box background only → merge at opacity²
+        //     Pass 2: draw text + border only  → merge at opacity
+        $is_jpeg = ($mime === 'image/jpeg');
+        $box_merge_pct  = max(0, min(100, (int)($opacity * $opacity * 100))); // background effective opacity
+        $text_merge_pct = $merge_pct;                                        // text + border effective opacity
+
         if ($rotation != 0 && function_exists('imagerotate')) {
-            // Create temp canvas for box + text
-            $canvas_w = (int)ceil($box_w) + 2;
-            $canvas_h = (int)ceil($box_h) + 2;
+            // Rotation path: build a temp with box + text at full opacity, rotate, then
+            // two-pass merge back. (Rounded corners + rotation make per-element opacity
+            // passes impractical, so we approximate with a single merge at text opacity.)
+            $canvas_w = (int)ceil($box_w) + 4;
+            $canvas_h = (int)ceil($box_h) + 4;
+
             $temp = imagecreatetruecolor($canvas_w, $canvas_h);
             imagesavealpha($temp, true);
             imagealphablending($temp, false);
@@ -152,54 +178,82 @@ class PixelStampProcessor {
             imagefill($temp, 0, 0, $transparent);
             imagealphablending($temp, true);
 
-            // Allocate colors on temp canvas
-            $temp_text_color = imagecolorallocatealpha($temp, $rgb[0], $rgb[1], $rgb[2], (1 - $opacity) * 127);
-            $temp_box_color = imagecolorallocatealpha($temp, $box_rgb[0], $box_rgb[1], $box_rgb[2], (1 - $opacity) * 127);
-            $temp_border_color = imagecolorallocatealpha($temp, $border_rgb[0], $border_rgb[1], $border_rgb[2], (1 - $opacity) * 127);
+            $wm_text_color  = imagecolorallocate($temp, $rgb[0], $rgb[1], $rgb[2]);
+            $wm_box_color   = imagecolorallocate($temp, $box_rgb[0], $box_rgb[1], $box_rgb[2]);
+            $wm_border_color = imagecolorallocate($temp, $border_rgb[0], $border_rgb[1], $border_rgb[2]);
 
-            // Draw box on temp
             if ($use_box) {
                 if ($radius > 0) {
-                    self::imagefilledroundedrectangle($temp, 0, 0, $box_w, $box_h, $radius, $temp_box_color);
-                    self::imageroundedrectangle($temp, 0, 0, $box_w, $box_h, $radius, $temp_border_color);
+                    self::imagefilledroundedrectangle($temp, 2, 2, 2 + $box_w, 2 + $box_h, $radius, $wm_box_color);
+                    self::imageroundedrectangle($temp, 2, 2, 2 + $box_w, 2 + $box_h, $radius, $wm_border_color);
                 } else {
-                    imagefilledrectangle($temp, 0, 0, (int)$box_w, (int)$box_h, $temp_box_color);
-                    imagerectangle($temp, 0, 0, (int)$box_w, (int)$box_h, $temp_border_color);
+                    imagefilledrectangle($temp, 2, 2, (int)(2 + $box_w), (int)(2 + $box_h), $wm_box_color);
+                    imagerectangle($temp, 2, 2, (int)(2 + $box_w), (int)(2 + $box_h), $wm_border_color);
                 }
             }
 
-            // Draw text on temp
-            self::draw_text_lines($temp, $lines, $use_ttf, $font_size, $font_path, 0, $padding, $line_height, $max_line_width, $temp_text_color);
+            self::draw_text_lines($temp, $lines, $use_ttf, $font_size, $font_path, 2, 2, $padding, $line_height, $max_line_width, $wm_text_color);
 
-            // Rotate the temp canvas
             $rotated = imagerotate($temp, -$rotation, $transparent);
             imagesavealpha($rotated, true);
             imagedestroy($temp);
 
-            // Merge rotated canvas onto main image, centered on the original position
             $rot_w = imagesx($rotated);
             $rot_h = imagesy($rotated);
             $paste_x = (int)($x + $box_w / 2 - $rot_w / 2);
             $paste_y = (int)($y + $box_h / 2 - $rot_h / 2);
 
             imagealphablending($image, true);
-            imagecopy($image, $rotated, $paste_x, $paste_y, 0, 0, $rot_w, $rot_h);
+            imagesavealpha($image, !$is_jpeg);
+            imagecopymerge($image, $rotated, $paste_x, $paste_y, 0, 0, $rot_w, $rot_h, $text_merge_pct);
             imagedestroy($rotated);
         } else {
-            // No rotation — draw directly on image
-            // Draw Box
+            // Non-rotation path: two-pass merge for exact opacity-model match.
+            $layer_w = (int)ceil($box_w) + 2;
+            $layer_h = (int)ceil($box_h) + 2;
+            $paste_x = (int)$x;
+            $paste_y = (int)$y;
+
+            imagealphablending($image, true);
+            imagesavealpha($image, !$is_jpeg);
+
+            // --- Pass 1: box background at opacity² ---
+            if ($use_box) {
+                $pass1 = imagecreatetruecolor($layer_w, $layer_h);
+                imagecopy($pass1, $image, 0, 0, $paste_x, $paste_y, $layer_w, $layer_h);
+                imagealphablending($pass1, true);
+
+                $p1_box_color = imagecolorallocate($pass1, $box_rgb[0], $box_rgb[1], $box_rgb[2]);
+                if ($radius > 0) {
+                    self::imagefilledroundedrectangle($pass1, 1, 1, 1 + $box_w, 1 + $box_h, $radius, $p1_box_color);
+                } else {
+                    imagefilledrectangle($pass1, 1, 1, (int)(1 + $box_w), (int)(1 + $box_h), $p1_box_color);
+                }
+
+                imagecopymerge($image, $pass1, $paste_x, $paste_y, 0, 0, $layer_w, $layer_h, $box_merge_pct);
+                imagedestroy($pass1);
+            }
+
+            // --- Pass 2: text + border at opacity ---
+            $pass2 = imagecreatetruecolor($layer_w, $layer_h);
+            imagecopy($pass2, $image, 0, 0, $paste_x, $paste_y, $layer_w, $layer_h);
+            imagealphablending($pass2, true);
+
+            $p2_text_color  = imagecolorallocate($pass2, $rgb[0], $rgb[1], $rgb[2]);
+            $p2_border_color = imagecolorallocate($pass2, $border_rgb[0], $border_rgb[1], $border_rgb[2]);
+
             if ($use_box) {
                 if ($radius > 0) {
-                    self::imagefilledroundedrectangle($image, $x, $y, $x + $box_w, $y + $box_h, $radius, $box_color);
-                    self::imageroundedrectangle($image, $x, $y, $x + $box_w, $y + $box_h, $radius, $border_color);
+                    self::imageroundedrectangle($pass2, 1, 1, 1 + $box_w, 1 + $box_h, $radius, $p2_border_color);
                 } else {
-                    imagefilledrectangle($image, (int)$x, (int)$y, (int)($x + $box_w), (int)($y + $box_h), $box_color);
-                    imagerectangle($image, (int)$x, (int)$y, (int)($x + $box_w), (int)($y + $box_h), $border_color);
+                    imagerectangle($pass2, 1, 1, (int)(1 + $box_w), (int)(1 + $box_h), $p2_border_color);
                 }
             }
 
-            // Draw Text
-            self::draw_text_lines($image, $lines, $use_ttf, $font_size, $font_path, $x, $padding, $line_height, $max_line_width, $text_color);
+            self::draw_text_lines($pass2, $lines, $use_ttf, $font_size, $font_path, 1, 1, $padding, $line_height, $max_line_width, $p2_text_color);
+
+            imagecopymerge($image, $pass2, $paste_x, $paste_y, 0, 0, $layer_w, $layer_h, $text_merge_pct);
+            imagedestroy($pass2);
         }
 
         // Save back
@@ -221,13 +275,35 @@ class PixelStampProcessor {
 
     /**
      * Draw text lines on an image resource.
-     * Extracted to share between rotated/non-rotated code paths.
      */
-    private static function draw_text_lines($image, $lines, $use_ttf, $font_size, $font_path, $base_x, $padding, $line_height, $max_line_width, $text_color) {
-        $font_size_pt = $font_size * 0.75;
-        $y_offset = $padding;
+    private static function draw_text_lines($image, $lines, $use_ttf, $font_size, $font_path, $base_x, $base_y, $padding, $line_height, $max_line_width, $text_color) {
+        // GD size = CSS pixel font size (no conversion needed, see apply() comment)
+        $font_size_pt = $font_size;
+
+        // Calculate baseline offset using imagettfbbox ascent for proper vertical
+        // centering within the line-height. CSS line-height:1.4 centers text with
+        // equal spacing above and below. We use the font's actual ascent to compute
+        // the correct baseline Y position inside each line slot.
+        $baseline_offset = 0;
+        if ($use_ttf) {
+            $probe_bbox = @imagettfbbox($font_size_pt, 0, $font_path, 'Hg|Ájy');
+            if ($probe_bbox !== false) {
+                // GD imagettfbbox: Y=0 is baseline. Index 7 = upper-left Y (negative =
+                // above baseline = ascent). Index 1 = lower-left Y (positive = below
+                // baseline = descent).
+                $ascent = abs($probe_bbox[7]);
+                $text_height = abs($probe_bbox[7] - $probe_bbox[1]);
+                // CSS line-height:1.4 adds half-leading equally above and below the
+                // text. Baseline from top of line box = half-leading + ascent.
+                $baseline_offset = ($line_height - $text_height) / 2 + $ascent;
+            } else {
+                // Fallback: approximate — baseline sits ~80% down from top of em-square
+                $baseline_offset = $font_size_pt * 1.0;
+            }
+        }
+
         foreach ($lines as $i => $line) {
-            $ly = $y_offset + ($i * $line_height) + ($use_ttf ? ($font_size * 1.1) : 0);
+            $ly = $base_y + $padding + ($i * $line_height) + $baseline_offset;
             if ($use_ttf) {
                 $bbox = @imagettfbbox($font_size_pt, 0, $font_path, $line);
                 if ($bbox !== false) {
@@ -420,13 +496,18 @@ class PixelStampProcessor {
 
     public static function get_font_candidates() {
         $plugin_fonts = PIXELSTAMP_WATERMARK_PATH . 'assets/fonts/';
+        // IMPORTANT: Match the JS preview font weights exactly. admin.js uses regular-weight
+        // CSS fonts ('Inter', 'Arial', 'Times New Roman', 'Courier New') — NOT bold. Using a
+        // Bold TTF here would render text ~25% wider/larger than the preview. The bundled
+        // Inter-Regular.ttf ships with the plugin for this exact reason.
         return [
             'inter' => [
+                $plugin_fonts . 'Inter-Regular.ttf',
                 $plugin_fonts . 'Inter-Bold.ttf',
-                '/System/Library/Fonts/Supplemental/Arial Bold.ttf',
-                '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
-                '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf',
-                'C:\\Windows\\Fonts\\arialbd.ttf',
+                '/System/Library/Fonts/Supplemental/Arial.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                '/usr/share/fonts/dejavu/DejaVuSans.ttf',
+                'C:\\Windows\\Fonts\\arial.ttf',
             ],
             'arial' => [
                 $plugin_fonts . 'Arial.ttf',

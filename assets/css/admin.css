@@ -3,6 +3,18 @@
    Modern Grid Layout with Improved User Experience
    ============================================================================ */
 
+/* Bundled Inter font — load the EXACT same file the PHP renderer uses so the
+   live preview pixel-matches the applied watermark. Without this, the browser
+   falls back to its default sans-serif and the previewed text width differs
+   from the GD-rendered output. */
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/Inter-Regular.ttf') format('truetype');
+}
+
 /* Base Styles */
 :root {
     --lm-primary: #2271b1;
