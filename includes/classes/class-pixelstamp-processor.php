@@ -88,7 +88,9 @@ class PixelStampProcessor {
             if ($use_ttf) {
                 $bbox = @imagettfbbox($font_size_pt, 0, $font_path, $line);
                 if ($bbox !== false) {
-                    $w = abs($bbox[2] - $bbox[0]);
+                    $min_x = min($bbox[0], $bbox[6]);
+                    $max_x = max($bbox[2], $bbox[4]);
+                    $w = $max_x - $min_x;
                 } else {
                     $w = strlen(self::normalize_line_for_builtin_font($line)) * imagefontwidth(5);
                 }
@@ -101,8 +103,8 @@ class PixelStampProcessor {
         $total_height = count($lines) * $line_height;
 
         // Relative Padding and Margin — matches preview proportions
-        $padding = ($width / 1000) * $box_padding_val * $scale;
-        $radius = ($width / 1000) * $box_radius_val * $scale;
+        $padding = $use_box ? (($width / 1000) * $box_padding_val * $scale) : 0;
+        $radius = $use_box ? (($width / 1000) * $box_radius_val * $scale) : 0;
         // Margin: preview uses 8px at display size. For proportional match,
         // use 2% of image width (equivalent to ~8px at typical preview widths)
         $margin = $width * 0.02;
@@ -143,56 +145,36 @@ class PixelStampProcessor {
                 $y = $height - $box_h - $margin - $scaled_offset_y;
         }
 
-        // Apply watermark using a compositing approach that works for ALL image formats.
-        //
-        // JPEG does NOT support alpha channels — imagecolorallocatealpha() alpha values
-        // are silently discarded on imagejpeg() save. So we composite via imagecopymerge().
-        //
-        // OPACITY MODEL (must match the JS/CSS preview exactly):
-        //   In admin.js the overlay gets CSS `opacity: <opacity>` on the whole element,
-        //   AND the box background is pre-multiplied via hexToRgba(boxBg, opacity). So the
-        //   effective opacities are:
-        //     - Box background: opacity * opacity  (double-applied)
-        //     - Text + border:  opacity            (single)
-        //
-        //   imagecopymerge() blends the ENTIRE region at one percentage, so we do it in two
-        //   passes on a temp canvas that starts as a copy of the original pixels (so non-drawn
-        //   pixels blend to themselves = unchanged):
-        //     Pass 1: draw box background only → merge at opacity²
-        //     Pass 2: draw text + border only  → merge at opacity
         $is_jpeg = ($mime === 'image/jpeg');
         $box_merge_pct  = max(0, min(100, (int)($opacity * $opacity * 100))); // background effective opacity
         $text_merge_pct = $merge_pct;                                        // text + border effective opacity
 
-        if ($rotation != 0 && function_exists('imagerotate')) {
-            // Rotation path: build a temp with box + text at full opacity, rotate, then
-            // two-pass merge back. (Rounded corners + rotation make per-element opacity
-            // passes impractical, so we approximate with a single merge at text opacity.)
-            $canvas_w = (int)ceil($box_w) + 4;
-            $canvas_h = (int)ceil($box_h) + 4;
+        $layer_w = (int)ceil($box_w);
+        $layer_h = (int)ceil($box_h);
 
-            $temp = imagecreatetruecolor($canvas_w, $canvas_h);
+        if ($rotation != 0 && function_exists('imagerotate')) {
+            $temp = imagecreatetruecolor($layer_w, $layer_h);
             imagesavealpha($temp, true);
             imagealphablending($temp, false);
             $transparent = imagecolorallocatealpha($temp, 0, 0, 0, 127);
             imagefill($temp, 0, 0, $transparent);
             imagealphablending($temp, true);
 
-            $wm_text_color  = imagecolorallocate($temp, $rgb[0], $rgb[1], $rgb[2]);
-            $wm_box_color   = imagecolorallocate($temp, $box_rgb[0], $box_rgb[1], $box_rgb[2]);
+            $wm_text_color   = imagecolorallocate($temp, $rgb[0], $rgb[1], $rgb[2]);
+            $wm_box_color    = imagecolorallocate($temp, $box_rgb[0], $box_rgb[1], $box_rgb[2]);
             $wm_border_color = imagecolorallocate($temp, $border_rgb[0], $border_rgb[1], $border_rgb[2]);
 
             if ($use_box) {
                 if ($radius > 0) {
-                    self::imagefilledroundedrectangle($temp, 2, 2, 2 + $box_w, 2 + $box_h, $radius, $wm_box_color);
-                    self::imageroundedrectangle($temp, 2, 2, 2 + $box_w, 2 + $box_h, $radius, $wm_border_color);
+                    self::imagefilledroundedrectangle($temp, 0, 0, $layer_w - 1, $layer_h - 1, $radius, $wm_box_color);
+                    self::imageroundedrectangle($temp, 0, 0, $layer_w - 1, $layer_h - 1, $radius, $wm_border_color);
                 } else {
-                    imagefilledrectangle($temp, 2, 2, (int)(2 + $box_w), (int)(2 + $box_h), $wm_box_color);
-                    imagerectangle($temp, 2, 2, (int)(2 + $box_w), (int)(2 + $box_h), $wm_border_color);
+                    imagefilledrectangle($temp, 0, 0, $layer_w - 1, $layer_h - 1, $wm_box_color);
+                    imagerectangle($temp, 0, 0, $layer_w - 1, $layer_h - 1, $wm_border_color);
                 }
             }
 
-            self::draw_text_lines($temp, $lines, $use_ttf, $font_size, $font_path, 2, 2, $padding, $line_height, $max_line_width, $wm_text_color);
+            self::draw_text_lines($temp, $lines, $use_ttf, $font_size, $font_path, 0, 0, $padding, $line_height, $max_line_width, $wm_text_color, $use_box);
 
             $rotated = imagerotate($temp, -$rotation, $transparent);
             imagesavealpha($rotated, true);
@@ -200,19 +182,16 @@ class PixelStampProcessor {
 
             $rot_w = imagesx($rotated);
             $rot_h = imagesy($rotated);
-            $paste_x = (int)($x + $box_w / 2 - $rot_w / 2);
-            $paste_y = (int)($y + $box_h / 2 - $rot_h / 2);
+            $paste_x = (int)round($x + $box_w / 2 - $rot_w / 2);
+            $paste_y = (int)round($y + $box_h / 2 - $rot_h / 2);
 
             imagealphablending($image, true);
             imagesavealpha($image, !$is_jpeg);
             imagecopymerge($image, $rotated, $paste_x, $paste_y, 0, 0, $rot_w, $rot_h, $text_merge_pct);
             imagedestroy($rotated);
         } else {
-            // Non-rotation path: two-pass merge for exact opacity-model match.
-            $layer_w = (int)ceil($box_w) + 2;
-            $layer_h = (int)ceil($box_h) + 2;
-            $paste_x = (int)$x;
-            $paste_y = (int)$y;
+            $paste_x = (int)round($x);
+            $paste_y = (int)round($y);
 
             imagealphablending($image, true);
             imagesavealpha($image, !$is_jpeg);
@@ -225,9 +204,9 @@ class PixelStampProcessor {
 
                 $p1_box_color = imagecolorallocate($pass1, $box_rgb[0], $box_rgb[1], $box_rgb[2]);
                 if ($radius > 0) {
-                    self::imagefilledroundedrectangle($pass1, 1, 1, 1 + $box_w, 1 + $box_h, $radius, $p1_box_color);
+                    self::imagefilledroundedrectangle($pass1, 0, 0, $layer_w - 1, $layer_h - 1, $radius, $p1_box_color);
                 } else {
-                    imagefilledrectangle($pass1, 1, 1, (int)(1 + $box_w), (int)(1 + $box_h), $p1_box_color);
+                    imagefilledrectangle($pass1, 0, 0, $layer_w - 1, $layer_h - 1, $p1_box_color);
                 }
 
                 imagecopymerge($image, $pass1, $paste_x, $paste_y, 0, 0, $layer_w, $layer_h, $box_merge_pct);
@@ -239,18 +218,18 @@ class PixelStampProcessor {
             imagecopy($pass2, $image, 0, 0, $paste_x, $paste_y, $layer_w, $layer_h);
             imagealphablending($pass2, true);
 
-            $p2_text_color  = imagecolorallocate($pass2, $rgb[0], $rgb[1], $rgb[2]);
+            $p2_text_color   = imagecolorallocate($pass2, $rgb[0], $rgb[1], $rgb[2]);
             $p2_border_color = imagecolorallocate($pass2, $border_rgb[0], $border_rgb[1], $border_rgb[2]);
 
             if ($use_box) {
                 if ($radius > 0) {
-                    self::imageroundedrectangle($pass2, 1, 1, 1 + $box_w, 1 + $box_h, $radius, $p2_border_color);
+                    self::imageroundedrectangle($pass2, 0, 0, $layer_w - 1, $layer_h - 1, $radius, $p2_border_color);
                 } else {
-                    imagerectangle($pass2, 1, 1, (int)(1 + $box_w), (int)(1 + $box_h), $p2_border_color);
+                    imagerectangle($pass2, 0, 0, $layer_w - 1, $layer_h - 1, $p2_border_color);
                 }
             }
 
-            self::draw_text_lines($pass2, $lines, $use_ttf, $font_size, $font_path, 1, 1, $padding, $line_height, $max_line_width, $p2_text_color);
+            self::draw_text_lines($pass2, $lines, $use_ttf, $font_size, $font_path, 0, 0, $padding, $line_height, $max_line_width, $p2_text_color, $use_box);
 
             imagecopymerge($image, $pass2, $paste_x, $paste_y, 0, 0, $layer_w, $layer_h, $text_merge_pct);
             imagedestroy($pass2);
@@ -276,79 +255,90 @@ class PixelStampProcessor {
     /**
      * Draw text lines on an image resource.
      */
-    private static function draw_text_lines($image, $lines, $use_ttf, $font_size, $font_path, $base_x, $base_y, $padding, $line_height, $max_line_width, $text_color) {
-        // GD size = CSS pixel font size (no conversion needed, see apply() comment)
+    private static function draw_text_lines($image, $lines, $use_ttf, $font_size, $font_path, $base_x, $base_y, $padding, $line_height, $max_line_width, $text_color, $use_box = true) {
         $font_size_pt = $font_size;
+        $pad_x = $use_box ? $padding : 0;
+        $pad_y = $use_box ? $padding : 0;
 
-        // Calculate baseline offset using imagettfbbox ascent for proper vertical
-        // centering within the line-height. CSS line-height:1.4 centers text with
-        // equal spacing above and below. We use the font's actual ascent to compute
-        // the correct baseline Y position inside each line slot.
         $baseline_offset = 0;
         if ($use_ttf) {
-            $probe_bbox = @imagettfbbox($font_size_pt, 0, $font_path, 'Hg|Ájy');
-            if ($probe_bbox !== false) {
-                // GD imagettfbbox: Y=0 is baseline. Index 7 = upper-left Y (negative =
-                // above baseline = ascent). Index 1 = lower-left Y (positive = below
-                // baseline = descent).
-                $ascent = abs($probe_bbox[7]);
-                $text_height = abs($probe_bbox[7] - $probe_bbox[1]);
-                // CSS line-height:1.4 adds half-leading equally above and below the
-                // text. Baseline from top of line box = half-leading + ascent.
-                $baseline_offset = ($line_height - $text_height) / 2 + $ascent;
+            $cap_bbox = @imagettfbbox($font_size_pt, 0, $font_path, 'H');
+            if ($cap_bbox !== false) {
+                $cap_height = abs($cap_bbox[7]);
+                $half_leading = ($line_height - $font_size) / 2;
+                $baseline_offset = $half_leading + $cap_height;
             } else {
-                // Fallback: approximate — baseline sits ~80% down from top of em-square
                 $baseline_offset = $font_size_pt * 1.0;
             }
         }
 
         foreach ($lines as $i => $line) {
-            $ly = $base_y + $padding + ($i * $line_height) + $baseline_offset;
+            $ly = $base_y + $pad_y + ($i * $line_height) + $baseline_offset;
             if ($use_ttf) {
                 $bbox = @imagettfbbox($font_size_pt, 0, $font_path, $line);
                 if ($bbox !== false) {
-                    $lw = abs($bbox[2] - $bbox[0]);
-                    $lx = $base_x + $padding + ($max_line_width - $lw) / 2;
-                    $drawn = @imagettftext($image, $font_size_pt, 0, (int)$lx, (int)$ly, $text_color, $font_path, $line);
+                    $min_x = min($bbox[0], $bbox[6]);
+                    $max_x = max($bbox[2], $bbox[4]);
+                    $lw = $max_x - $min_x;
+                    $lx = $base_x + $pad_x + ($max_line_width - $lw) / 2 - $min_x;
+                    $drawn = @imagettftext($image, $font_size_pt, 0, (int)round($lx), (int)round($ly), $text_color, $font_path, $line);
                     if ($drawn === false) {
                         $fallback = self::normalize_line_for_builtin_font($line);
                         $lw = strlen($fallback) * imagefontwidth(5);
-                        $lx = $base_x + $padding + ($max_line_width - $lw) / 2;
-                        imagestring($image, 5, (int)$lx, (int)$ly, $fallback, $text_color);
+                        $lx = $base_x + $pad_x + ($max_line_width - $lw) / 2;
+                        imagestring($image, 5, (int)round($lx), (int)round($ly), $fallback, $text_color);
                     }
                 } else {
                     $fallback = self::normalize_line_for_builtin_font($line);
                     $lw = strlen($fallback) * imagefontwidth(5);
-                    $lx = $base_x + $padding + ($max_line_width - $lw) / 2;
-                    imagestring($image, 5, (int)$lx, (int)$ly, $fallback, $text_color);
+                    $lx = $base_x + $pad_x + ($max_line_width - $lw) / 2;
+                    imagestring($image, 5, (int)round($lx), (int)round($ly), $fallback, $text_color);
                 }
             } else {
                 $fallback = self::normalize_line_for_builtin_font($line);
                 $lw = strlen($fallback) * imagefontwidth(5);
-                $lx = $base_x + $padding + ($max_line_width - $lw) / 2;
-                imagestring($image, 5, (int)$lx, (int)$ly, $fallback, $text_color);
+                $lx = $base_x + $pad_x + ($max_line_width - $lw) / 2;
+                imagestring($image, 5, (int)round($lx), (int)round($ly), $fallback, $text_color);
             }
         }
     }
 
     private static function imagefilledroundedrectangle($img, $x1, $y1, $x2, $y2, $radius, $color) {
-        imagefilledrectangle($img, $x1 + $radius, $y1, $x2 - $radius, $y2, $color);
-        imagefilledrectangle($img, $x1, $y1 + $radius, $x2, $y2 - $radius, $color);
-        imagefilledellipse($img, $x1 + $radius, $y1 + $radius, $radius * 2, $radius * 2, $color);
-        imagefilledellipse($img, $x2 - $radius, $y1 + $radius, $radius * 2, $radius * 2, $color);
-        imagefilledellipse($img, $x1 + $radius, $y2 - $radius, $radius * 2, $radius * 2, $color);
-        imagefilledellipse($img, $x2 - $radius, $y2 - $radius, $radius * 2, $radius * 2, $color);
+        $w = $x2 - $x1;
+        $h = $y2 - $y1;
+        $max_r = min(floor($w / 2), floor($h / 2));
+        if ($radius > $max_r) $radius = $max_r;
+        if ($radius <= 0) {
+            imagefilledrectangle($img, (int)$x1, (int)$y1, (int)$x2, (int)$y2, $color);
+            return;
+        }
+
+        imagefilledrectangle($img, (int)($x1 + $radius), (int)$y1, (int)($x2 - $radius), (int)$y2, $color);
+        imagefilledrectangle($img, (int)$x1, (int)($y1 + $radius), (int)$x2, (int)($y2 - $radius), $color);
+        imagefilledellipse($img, (int)($x1 + $radius), (int)($y1 + $radius), (int)($radius * 2), (int)($radius * 2), $color);
+        imagefilledellipse($img, (int)($x2 - $radius), (int)($y1 + $radius), (int)($radius * 2), (int)($radius * 2), $color);
+        imagefilledellipse($img, (int)($x1 + $radius), (int)($y2 - $radius), (int)($radius * 2), (int)($radius * 2), $color);
+        imagefilledellipse($img, (int)($x2 - $radius), (int)($y2 - $radius), (int)($radius * 2), (int)($radius * 2), $color);
     }
 
     private static function imageroundedrectangle($img, $x1, $y1, $x2, $y2, $radius, $color) {
-        imageline($img, $x1 + $radius, $y1, $x2 - $radius, $y1, $color);
-        imageline($img, $x1 + $radius, $y2, $x2 - $radius, $y2, $color);
-        imageline($img, $x1, $y1 + $radius, $x1, $y2 - $radius, $color);
-        imageline($img, $x2, $y1 + $radius, $x2, $y2 - $radius, $color);
-        imagearc($img, $x1 + $radius, $y1 + $radius, $radius * 2, $radius * 2, 180, 270, $color);
-        imagearc($img, $x2 - $radius, $y1 + $radius, $radius * 2, $radius * 2, 270, 360, $color);
-        imagearc($img, $x1 + $radius, $y2 - $radius, $radius * 2, $radius * 2, 90, 180, $color);
-        imagearc($img, $x2 - $radius, $y2 - $radius, $radius * 2, $radius * 2, 0, 90, $color);
+        $w = $x2 - $x1;
+        $h = $y2 - $y1;
+        $max_r = min(floor($w / 2), floor($h / 2));
+        if ($radius > $max_r) $radius = $max_r;
+        if ($radius <= 0) {
+            imagerectangle($img, (int)$x1, (int)$y1, (int)$x2, (int)$y2, $color);
+            return;
+        }
+
+        imageline($img, (int)($x1 + $radius), (int)$y1, (int)($x2 - $radius), (int)$y1, $color);
+        imageline($img, (int)($x1 + $radius), (int)$y2, (int)($x2 - $radius), (int)$y2, $color);
+        imageline($img, (int)$x1, (int)($y1 + $radius), (int)$x1, (int)($y2 - $radius), $color);
+        imageline($img, (int)$x2, (int)($y1 + $radius), (int)$x2, (int)($y2 - $radius), $color);
+        imagearc($img, (int)($x1 + $radius), (int)($y1 + $radius), (int)($radius * 2), (int)($radius * 2), 180, 270, $color);
+        imagearc($img, (int)($x2 - $radius), (int)($y1 + $radius), (int)($radius * 2), (int)($radius * 2), 270, 360, $color);
+        imagearc($img, (int)($x1 + $radius), (int)($y2 - $radius), (int)($radius * 2), (int)($radius * 2), 90, 180, $color);
+        imagearc($img, (int)($x2 - $radius), (int)($y2 - $radius), (int)($radius * 2), (int)($radius * 2), 0, 90, $color);
     }
 
     private static function hex2rgb($hex) {

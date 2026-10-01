@@ -14,6 +14,7 @@ class PixelStampWatermarkAdmin {
 
     private function init_hooks() {
         add_action('admin_menu', [$this, 'add_admin_menu']);
+        add_action('admin_head', [$this, 'admin_menu_icon_css']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
         add_action('wp_ajax_pixelstamp_apply', [$this, 'ajax_apply_watermark']);
         add_action('wp_ajax_pixelstamp_restore', [$this, 'ajax_restore_image']);
@@ -22,16 +23,38 @@ class PixelStampWatermarkAdmin {
         add_action('plugin_action_links_' . plugin_basename(PIXELSTAMP_WATERMARK_PATH . 'pixelstamp-watermark.php'), [$this, 'add_plugin_action_links']);
     }
 
-
+    public function admin_menu_icon_css() {
+        echo '<style>
+            #adminmenu .toplevel_page_pixelstamp-watermark .wp-menu-image img {
+                padding: 3px 0 0 0 !important;
+                max-width: 18px !important;
+                max-height: 18px !important;
+                width: 18px !important;
+                height: auto !important;
+                object-fit: contain !important;
+                filter: brightness(0) invert(1) opacity(0.7) !important;
+                transition: all 0.2s ease;
+            }
+            #adminmenu .toplevel_page_pixelstamp-watermark:hover .wp-menu-image img,
+            #adminmenu .toplevel_page_pixelstamp-watermark.current .wp-menu-image img,
+            #adminmenu .toplevel_page_pixelstamp-watermark.wp-has-current-submenu .wp-menu-image img {
+                filter: brightness(0) invert(1) opacity(1) !important;
+            }
+        </style>';
+    }
 
     public function add_admin_menu() {
+        $icon_url = file_exists(PIXELSTAMP_WATERMARK_PATH . 'assets/icon.svg')
+            ? 'data:image/svg+xml;base64,' . base64_encode(file_get_contents(PIXELSTAMP_WATERMARK_PATH . 'assets/icon.svg'))
+            : PIXELSTAMP_WATERMARK_URL . 'assets/logo.png';
+
         add_menu_page(
             __('PixelStamp Watermark', 'pixelstamp-watermark'),
             __('PixelStamp', 'pixelstamp-watermark'),
             'manage_options',
             'pixelstamp-watermark',
             [$this, 'render_admin_page'],
-            'dashicons-format-image',
+            $icon_url,
             60
         );
     }

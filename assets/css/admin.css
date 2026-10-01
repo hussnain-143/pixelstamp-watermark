@@ -15,6 +15,30 @@
     src: url('../fonts/Inter-Regular.ttf') format('truetype');
 }
 
+@font-face {
+    font-family: 'Arial';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: local('Arial'), url('../fonts/Arial.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Times New Roman';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: local('Times New Roman'), url('../fonts/Times.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Courier New';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: local('Courier New'), url('../fonts/Courier.ttf') format('truetype');
+}
+
 /* Base Styles */
 :root {
     --lm-primary: #2271b1;
@@ -39,6 +63,8 @@
 .pixelstamp-wrap {
     margin-top: var(--lm-spacing-xl);
 }
+
+
 
 /* ============================================================================
    BUTTON STYLES - Responsive and Accessible
