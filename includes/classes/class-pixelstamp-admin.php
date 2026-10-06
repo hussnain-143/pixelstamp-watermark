@@ -26,27 +26,25 @@ class PixelStampWatermarkAdmin {
     public function admin_menu_icon_css() {
         echo '<style>
             #adminmenu .toplevel_page_pixelstamp-watermark .wp-menu-image img {
-                padding: 3px 0 0 0 !important;
-                max-width: 18px !important;
-                max-height: 18px !important;
-                width: 18px !important;
-                height: auto !important;
+                padding: 6px 0 0 0 !important;
+                max-width: 22px !important;
+                max-height: 22px !important;
+                width: 22px !important;
+                height: 22px !important;
                 object-fit: contain !important;
-                filter: brightness(0) invert(1) opacity(0.7) !important;
-                transition: all 0.2s ease;
+                opacity: 0.9 !important;
+                transition: opacity 0.2s ease;
             }
             #adminmenu .toplevel_page_pixelstamp-watermark:hover .wp-menu-image img,
             #adminmenu .toplevel_page_pixelstamp-watermark.current .wp-menu-image img,
             #adminmenu .toplevel_page_pixelstamp-watermark.wp-has-current-submenu .wp-menu-image img {
-                filter: brightness(0) invert(1) opacity(1) !important;
+                opacity: 1 !important;
             }
         </style>';
     }
 
     public function add_admin_menu() {
-        $icon_url = file_exists(PIXELSTAMP_WATERMARK_PATH . 'assets/icon.svg')
-            ? 'data:image/svg+xml;base64,' . base64_encode(file_get_contents(PIXELSTAMP_WATERMARK_PATH . 'assets/icon.svg'))
-            : PIXELSTAMP_WATERMARK_URL . 'assets/logo.png';
+        $icon_url = PIXELSTAMP_WATERMARK_URL . 'assets/logo_icon.png';
 
         add_menu_page(
             __('PixelStamp Watermark', 'pixelstamp-watermark'),
