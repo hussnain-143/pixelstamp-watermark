@@ -132,11 +132,13 @@ jQuery(document).ready(function($) {
         const focusedFontSize = (focusedWidth * sizePercent) / 400 * scale;
         const focusedPadding = (focusedWidth / 1000) * boxPadding * scale;
         const focusedRadius = (focusedWidth / 1000) * boxRadius * scale;
+        const focusedPadX = useBox ? (focusedPadding + focusedRadius * 0.65) : 0;
+        const focusedPadY = useBox ? focusedPadding : 0;
 
         $focusedOverlay.css({
             ...styleObj,
             'font-size': Math.max(focusedFontSize, 8) + 'px',
-            'padding': useBox ? focusedPadding + 'px' : '0',
+            'padding': useBox ? `${focusedPadY}px ${focusedPadX}px` : '0',
             'border-radius': useBox ? focusedRadius + 'px' : '0',
             'transform': `rotate(${rotation}deg)`
         });
@@ -153,13 +155,15 @@ jQuery(document).ready(function($) {
         const previewFontSize = (displayedWidth * sizePercent) / 400 * scale;
         const previewPadding = (displayedWidth / 1000) * boxPadding * scale;
         const previewRadius = (displayedWidth / 1000) * boxRadius * scale;
+        const previewPadX = useBox ? (previewPadding + previewRadius * 0.65) : 0;
+        const previewPadY = useBox ? previewPadding : 0;
 
         // Base styles without transform (will be added separately)
         $watermarkOverlay.css({
             ...styleObj,
             'font-size': Math.max(previewFontSize, 8) + 'px',
             'top': 'auto', 'bottom': 'auto', 'left': 'auto', 'right': 'auto',
-            'padding': useBox ? previewPadding + 'px' : '0',
+            'padding': useBox ? `${previewPadY}px ${previewPadX}px` : '0',
             'border-radius': useBox ? previewRadius + 'px' : '0'
         });
 

@@ -86,14 +86,8 @@ class PixelStampProcessor {
 
         foreach ($lines as $line) {
             if ($use_ttf) {
-                $bbox = @imagettfbbox($font_size_pt, 0, $font_path, $line);
-                if ($bbox !== false) {
-                    $min_x = min($bbox[0], $bbox[6]);
-                    $max_x = max($bbox[2], $bbox[4]);
-                    $w = $max_x - $min_x;
-                } else {
-                    $w = strlen(self::normalize_line_for_builtin_font($line)) * imagefontwidth(5);
-                }
+                $m = self::measure_text_line($font_size_pt, $font_path, $line, $font_choice);
+                $w = $m['width'];
             } else {
                 $w = strlen(self::normalize_line_for_builtin_font($line)) * imagefontwidth(5);
             }
@@ -105,18 +99,22 @@ class PixelStampProcessor {
         // Relative Padding and Margin — matches preview proportions
         $padding = $use_box ? (($width / 1000) * $box_padding_val * $scale) : 0;
         $radius = $use_box ? (($width / 1000) * $box_radius_val * $scale) : 0;
+
+        // When a corner radius is used, curved corners cut into horizontal space.
+        // We add generous curve clearance to horizontal padding so text never touches the curved arc.
+        $pad_x = $use_box ? ($padding + ($radius * 0.65)) : 0;
+        $pad_y = $padding;
+
+        $box_w = $max_line_width + ($pad_x * 2);
+        $box_h = $total_height + ($pad_y * 2);
+
         // Margin: preview uses 8px at display size. For proportional match,
         // use 2% of image width (equivalent to ~8px at typical preview widths)
         $margin = $width * 0.02;
 
         // Scale offsets proportionally to image width
-        // Preview offsets are in CSS pixels relative to displayed image
-        // Convert to actual image pixels
         $scaled_offset_x = ($width / 400) * $offset_x;
         $scaled_offset_y = ($width / 400) * $offset_y;
-
-        $box_w = $max_line_width + ($padding * 2);
-        $box_h = $total_height + ($padding * 2);
 
         // Position — matches preview switch/case logic
         switch ($position) {
@@ -174,7 +172,7 @@ class PixelStampProcessor {
                 }
             }
 
-            self::draw_text_lines($temp, $lines, $use_ttf, $font_size, $font_path, 0, 0, $padding, $line_height, $max_line_width, $wm_text_color, $use_box);
+            self::draw_text_lines($temp, $lines, $use_ttf, $font_size, $font_path, 0, 0, $pad_x, $pad_y, $line_height, $max_line_width, $wm_text_color, $use_box, $font_choice);
 
             $rotated = imagerotate($temp, -$rotation, $transparent);
             imagesavealpha($rotated, true);
@@ -229,7 +227,7 @@ class PixelStampProcessor {
                 }
             }
 
-            self::draw_text_lines($pass2, $lines, $use_ttf, $font_size, $font_path, 0, 0, $padding, $line_height, $max_line_width, $p2_text_color, $use_box);
+            self::draw_text_lines($pass2, $lines, $use_ttf, $font_size, $font_path, 0, 0, $pad_x, $pad_y, $line_height, $max_line_width, $p2_text_color, $use_box, $font_choice);
 
             imagecopymerge($image, $pass2, $paste_x, $paste_y, 0, 0, $layer_w, $layer_h, $text_merge_pct);
             imagedestroy($pass2);
@@ -253,20 +251,59 @@ class PixelStampProcessor {
     }
 
     /**
+     * Measure a text line, applying smart optical spacing for copyright symbols in monospace fonts.
+     */
+    private static function measure_text_line($font_size_pt, $font_path, $line, $font_choice = '') {
+        $is_courier = (sanitize_key($font_choice) === 'courier');
+        if ($is_courier && preg_match('/^©\s+(.+)$/u', $line, $m)) {
+            $b_c = @imagettfbbox($font_size_pt, 0, $font_path, '©');
+            $w_c = ($b_c !== false) ? ($b_c[2] - $b_c[0]) : 0;
+            $b_rest = @imagettfbbox($font_size_pt, 0, $font_path, $m[1]);
+            $w_rest = ($b_rest !== false) ? ($b_rest[2] - $b_rest[0]) : 0;
+            $opt_space = (int)round($font_size_pt * 0.25);
+            return [
+                'width' => $w_c + $opt_space + $w_rest,
+                'is_split_c' => true,
+                'c_width' => $w_c,
+                'opt_space' => $opt_space,
+                'rest_text' => $m[1]
+            ];
+        }
+
+        $bbox = @imagettfbbox($font_size_pt, 0, $font_path, $line);
+        if ($bbox !== false) {
+            $min_x = min($bbox[0], $bbox[6]);
+            $max_x = max($bbox[2], $bbox[4]);
+            return [
+                'width' => $max_x - $min_x,
+                'min_x' => $min_x,
+                'is_split_c' => false,
+                'bbox' => $bbox
+            ];
+        }
+
+        return [
+            'width' => strlen(self::normalize_line_for_builtin_font($line)) * imagefontwidth(5),
+            'min_x' => 0,
+            'is_split_c' => false
+        ];
+    }
+
+    /**
      * Draw text lines on an image resource.
      */
-    private static function draw_text_lines($image, $lines, $use_ttf, $font_size, $font_path, $base_x, $base_y, $padding, $line_height, $max_line_width, $text_color, $use_box = true) {
+    private static function draw_text_lines($image, $lines, $use_ttf, $font_size, $font_path, $base_x, $base_y, $pad_x, $pad_y, $line_height, $max_line_width, $text_color, $use_box = true, $font_choice = '') {
         $font_size_pt = $font_size;
-        $pad_x = $use_box ? $padding : 0;
-        $pad_y = $use_box ? $padding : 0;
+        $pad_x = $use_box ? $pad_x : 0;
+        $pad_y = $use_box ? $pad_y : 0;
 
         $baseline_offset = 0;
         if ($use_ttf) {
             $cap_bbox = @imagettfbbox($font_size_pt, 0, $font_path, 'H');
             if ($cap_bbox !== false) {
-                $cap_height = abs($cap_bbox[7]);
-                $half_leading = ($line_height - $font_size) / 2;
-                $baseline_offset = $half_leading + $cap_height;
+                $cap_height = abs(min($cap_bbox[5], $cap_bbox[7]));
+                // Center capital glyph height within line_height for perfect vertical symmetry:
+                $baseline_offset = ($line_height - $cap_height) / 2 + $cap_height;
             } else {
                 $baseline_offset = $font_size_pt * 1.0;
             }
@@ -275,24 +312,22 @@ class PixelStampProcessor {
         foreach ($lines as $i => $line) {
             $ly = $base_y + $pad_y + ($i * $line_height) + $baseline_offset;
             if ($use_ttf) {
-                $bbox = @imagettfbbox($font_size_pt, 0, $font_path, $line);
-                if ($bbox !== false) {
-                    $min_x = min($bbox[0], $bbox[6]);
-                    $max_x = max($bbox[2], $bbox[4]);
-                    $lw = $max_x - $min_x;
-                    $lx = $base_x + $pad_x + ($max_line_width - $lw) / 2 - $min_x;
-                    $drawn = @imagettftext($image, $font_size_pt, 0, (int)round($lx), (int)round($ly), $text_color, $font_path, $line);
+                $metrics = self::measure_text_line($font_size_pt, $font_path, $line, $font_choice);
+                $lw = $metrics['width'];
+                $lx = $base_x + $pad_x + ($max_line_width - $lw) / 2;
+
+                if (!empty($metrics['is_split_c'])) {
+                    @imagettftext($image, $font_size_pt, 0, (int)round($lx), (int)round($ly), $text_color, $font_path, '©');
+                    @imagettftext($image, $font_size_pt, 0, (int)round($lx + $metrics['c_width'] + $metrics['opt_space']), (int)round($ly), $text_color, $font_path, $metrics['rest_text']);
+                } else {
+                    $min_x = isset($metrics['min_x']) ? $metrics['min_x'] : 0;
+                    $drawn = @imagettftext($image, $font_size_pt, 0, (int)round($lx - $min_x), (int)round($ly), $text_color, $font_path, $line);
                     if ($drawn === false) {
                         $fallback = self::normalize_line_for_builtin_font($line);
                         $lw = strlen($fallback) * imagefontwidth(5);
                         $lx = $base_x + $pad_x + ($max_line_width - $lw) / 2;
                         imagestring($image, 5, (int)round($lx), (int)round($ly), $fallback, $text_color);
                     }
-                } else {
-                    $fallback = self::normalize_line_for_builtin_font($line);
-                    $lw = strlen($fallback) * imagefontwidth(5);
-                    $lx = $base_x + $pad_x + ($max_line_width - $lw) / 2;
-                    imagestring($image, 5, (int)round($lx), (int)round($ly), $fallback, $text_color);
                 }
             } else {
                 $fallback = self::normalize_line_for_builtin_font($line);
@@ -304,41 +339,84 @@ class PixelStampProcessor {
     }
 
     private static function imagefilledroundedrectangle($img, $x1, $y1, $x2, $y2, $radius, $color) {
-        $w = $x2 - $x1;
-        $h = $y2 - $y1;
-        $max_r = min(floor($w / 2), floor($h / 2));
+        $w = (int)($x2 - $x1 + 1);
+        $h = (int)($y2 - $y1 + 1);
+        $max_r = min((int)floor($w / 2), (int)floor($h / 2));
         if ($radius > $max_r) $radius = $max_r;
         if ($radius <= 0) {
             imagefilledrectangle($img, (int)$x1, (int)$y1, (int)$x2, (int)$y2, $color);
             return;
         }
 
-        imagefilledrectangle($img, (int)($x1 + $radius), (int)$y1, (int)($x2 - $radius), (int)$y2, $color);
-        imagefilledrectangle($img, (int)$x1, (int)($y1 + $radius), (int)$x2, (int)($y2 - $radius), $color);
-        imagefilledellipse($img, (int)($x1 + $radius), (int)($y1 + $radius), (int)($radius * 2), (int)($radius * 2), $color);
-        imagefilledellipse($img, (int)($x2 - $radius), (int)($y1 + $radius), (int)($radius * 2), (int)($radius * 2), $color);
-        imagefilledellipse($img, (int)($x1 + $radius), (int)($y2 - $radius), (int)($radius * 2), (int)($radius * 2), $color);
-        imagefilledellipse($img, (int)($x2 - $radius), (int)($y2 - $radius), (int)($radius * 2), (int)($radius * 2), $color);
+        // Full capsule/pill shape (height <= 2*radius)
+        if ($radius >= (int)floor($h / 2)) {
+            $cy = (int)floor($h / 2);
+            $d = $cy * 2;
+            imagefilledrectangle($img, (int)($x1 + $cy), (int)$y1, (int)($x2 - $cy), (int)$y2, $color);
+            imagefilledarc($img, (int)($x1 + $cy), (int)($y1 + $cy), $d, $d, 90, 270, $color, IMG_ARC_PIE);
+            imagefilledarc($img, (int)($x2 - $cy), (int)($y1 + $cy), $d, $d, 270, 90, $color, IMG_ARC_PIE);
+            return;
+        }
+
+        // Standard rounded rectangle with corners
+        $cx_l = (int)($x1 + $radius);
+        $cx_r = (int)($x2 - $radius);
+        $cy_t = (int)($y1 + $radius);
+        $cy_b = (int)($y2 - $radius);
+        $d = (int)($radius * 2);
+
+        imagefilledrectangle($img, $cx_l, (int)$y1, $cx_r, (int)$y2, $color);
+        imagefilledrectangle($img, (int)$x1, $cy_t, (int)$x1 + $radius - 1, $cy_b, $color);
+        imagefilledrectangle($img, (int)$x2 - $radius + 1, $cy_t, (int)$x2, $cy_b, $color);
+        imagefilledarc($img, $cx_l, $cy_t, $d, $d, 180, 270, $color, IMG_ARC_PIE);
+        imagefilledarc($img, $cx_r, $cy_t, $d, $d, 270, 360, $color, IMG_ARC_PIE);
+        imagefilledarc($img, $cx_l, $cy_b, $d, $d, 90, 180, $color, IMG_ARC_PIE);
+        imagefilledarc($img, $cx_r, $cy_b, $d, $d, 0, 90, $color, IMG_ARC_PIE);
     }
 
     private static function imageroundedrectangle($img, $x1, $y1, $x2, $y2, $radius, $color) {
-        $w = $x2 - $x1;
-        $h = $y2 - $y1;
-        $max_r = min(floor($w / 2), floor($h / 2));
+        $w = (int)($x2 - $x1 + 1);
+        $h = (int)($y2 - $y1 + 1);
+        $max_r = min((int)floor($w / 2), (int)floor($h / 2));
         if ($radius > $max_r) $radius = $max_r;
         if ($radius <= 0) {
             imagerectangle($img, (int)$x1, (int)$y1, (int)$x2, (int)$y2, $color);
             return;
         }
 
-        imageline($img, (int)($x1 + $radius), (int)$y1, (int)($x2 - $radius), (int)$y1, $color);
-        imageline($img, (int)($x1 + $radius), (int)$y2, (int)($x2 - $radius), (int)$y2, $color);
-        imageline($img, (int)$x1, (int)($y1 + $radius), (int)$x1, (int)($y2 - $radius), $color);
-        imageline($img, (int)$x2, (int)($y1 + $radius), (int)$x2, (int)($y2 - $radius), $color);
-        imagearc($img, (int)($x1 + $radius), (int)($y1 + $radius), (int)($radius * 2), (int)($radius * 2), 180, 270, $color);
-        imagearc($img, (int)($x2 - $radius), (int)($y1 + $radius), (int)($radius * 2), (int)($radius * 2), 270, 360, $color);
-        imagearc($img, (int)($x1 + $radius), (int)($y2 - $radius), (int)($radius * 2), (int)($radius * 2), 90, 180, $color);
-        imagearc($img, (int)($x2 - $radius), (int)($y2 - $radius), (int)($radius * 2), (int)($radius * 2), 0, 90, $color);
+        // Full capsule/pill shape (height <= 2*radius)
+        if ($radius >= (int)floor($h / 2)) {
+            $cy = (int)floor($h / 2);
+            $d = $cy * 2;
+            imageline($img, (int)($x1 + $cy), (int)$y1, (int)($x2 - $cy), (int)$y1, $color);
+            imageline($img, (int)($x1 + $cy), (int)$y2, (int)($x2 - $cy), (int)$y2, $color);
+            imagearc($img, (int)($x1 + $cy), (int)($y1 + $cy), $d, $d, 90, 270, $color);
+            imagearc($img, (int)($x2 - $cy), (int)($y1 + $cy), $d, $d, 270, 90, $color);
+            return;
+        }
+
+        // Standard rounded rectangle with corners
+        $cx_l = (int)($x1 + $radius);
+        $cx_r = (int)($x2 - $radius);
+        $cy_t = (int)($y1 + $radius);
+        $cy_b = (int)($y2 - $radius);
+        $d = (int)($radius * 2);
+
+        // Top & Bottom lines
+        imageline($img, $cx_l, (int)$y1, $cx_r, (int)$y1, $color);
+        imageline($img, $cx_l, (int)$y2, $cx_r, (int)$y2, $color);
+
+        // Left & Right lines (only if height > 2*radius)
+        if ($cy_b > $cy_t) {
+            imageline($img, (int)$x1, $cy_t, (int)$x1, $cy_b, $color);
+            imageline($img, (int)$x2, $cy_t, (int)$x2, $cy_b, $color);
+        }
+
+        // 4 Corner Arcs
+        imagearc($img, $cx_l, $cy_t, $d, $d, 180, 270, $color);
+        imagearc($img, $cx_r, $cy_t, $d, $d, 270, 360, $color);
+        imagearc($img, $cx_l, $cy_b, $d, $d, 90, 180, $color);
+        imagearc($img, $cx_r, $cy_b, $d, $d, 0, 90, $color);
     }
 
     private static function hex2rgb($hex) {
