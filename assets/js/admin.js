@@ -79,9 +79,9 @@ jQuery(document).ready(function($) {
     function normalizeTextForFallback(text) {
         if (!text) return 'PixelStamp';
         let normalized = String(text)
-            .replaceAll('©', '(c)')
-            .replaceAll('®', '(R)')
-            .replaceAll('™', '(TM)');
+            .replace(/©/g, '(c)')
+            .replace(/®/g, '(R)')
+            .replace(/™/g, '(TM)');
         normalized = normalized.replace(/[^\x20-\x7E\n]/g, '');
         return normalized.trim() !== '' ? normalized : 'PixelStamp';
     }

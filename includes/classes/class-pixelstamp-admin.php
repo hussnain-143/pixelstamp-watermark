@@ -21,6 +21,8 @@ class PixelStampWatermarkAdmin {
         add_action('wp_ajax_pixelstamp_get_all_ids', [$this, 'ajax_get_all_ids']);
         add_action('wp_ajax_pixelstamp_save_settings', [$this, 'ajax_save_settings']);
         add_action('plugin_action_links_' . plugin_basename(PIXELSTAMP_WATERMARK_PATH . 'pixelstamp-watermark.php'), [$this, 'add_plugin_action_links']);
+        add_filter('manage_media_columns', [$this, 'add_media_columns']);
+        add_action('manage_media_custom_column', [$this, 'render_media_custom_column'], 10, 2);
     }
 
     public function admin_menu_icon_css() {
@@ -121,10 +123,15 @@ class PixelStampWatermarkAdmin {
         if (!current_user_can('manage_options')) wp_send_json_error(__('Unauthorized', 'pixelstamp-watermark'));
 
         $attachment_ids = isset($_POST['ids']) ? array_map('intval', (array) $_POST['ids']) : [];
-        $raw_settings = isset($_POST['settings']) ? map_deep(wp_unslash($_POST['settings']), 'sanitize_text_field') : $this->plugin->get_default_settings();
-        $settings = $this->sanitize_settings($raw_settings);
+        $raw_settings = isset($_POST['settings']) && is_array($_POST['settings']) ? wp_unslash($_POST['settings']) : [];
+        $settings = !empty($raw_settings) ? $this->sanitize_settings($raw_settings) : get_option('pixelstamp_settings', $this->plugin->get_default_settings());
 
-        update_option('pixelstamp_settings', $settings);
+        if (!empty($raw_settings)) {
+            $existing = get_option('pixelstamp_settings', []);
+            if ($existing !== $settings) {
+                update_option('pixelstamp_settings', $settings);
+            }
+        }
 
         $results = [];
         $success_count = 0;
@@ -192,7 +199,7 @@ class PixelStampWatermarkAdmin {
         check_ajax_referer('pixelstamp_nonce', 'nonce');
         if (!current_user_can('manage_options')) wp_send_json_error(__('Unauthorized', 'pixelstamp-watermark'));
 
-        $raw_settings = isset($_POST['settings']) ? map_deep(wp_unslash($_POST['settings']), 'sanitize_text_field') : [];
+        $raw_settings = isset($_POST['settings']) && is_array($_POST['settings']) ? wp_unslash($_POST['settings']) : [];
         $settings = $this->sanitize_settings($raw_settings);
 
         update_option('pixelstamp_settings', $settings);
@@ -228,5 +235,37 @@ class PixelStampWatermarkAdmin {
         $settings_link = '<a href="' . admin_url('admin.php?page=pixelstamp-watermark') . '">' . esc_html__('Settings', 'pixelstamp-watermark') . '</a>';
         array_unshift($links, $settings_link);
         return $links;
+    }
+
+    public function add_media_columns($columns) {
+        $columns['pixelstamp_status'] = __('Watermark', 'pixelstamp-watermark');
+        return $columns;
+    }
+
+    public function render_media_custom_column($column_name, $post_id) {
+        if ($column_name !== 'pixelstamp_status') {
+            return;
+        }
+
+        $mime = get_post_mime_type($post_id);
+        if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+            echo '<span style="color:#999;">—</span>';
+            return;
+        }
+
+        $is_watermarked = (bool) get_post_meta($post_id, '_pixelstamp_watermarked', true);
+        $has_backup = $this->plugin->has_backup($post_id);
+
+        if ($is_watermarked || $has_backup) {
+            echo '<span style="color:#1da855; font-weight:600; display:inline-flex; align-items:center; gap:4px;">';
+            echo '<span class="dashicons dashicons-yes-alt" style="font-size:16px; width:16px; height:16px;"></span> ';
+            echo esc_html__('Watermarked', 'pixelstamp-watermark');
+            echo '</span>';
+            if ($has_backup) {
+                echo '<br><small style="color:#666;">' . esc_html__('(Backup saved)', 'pixelstamp-watermark') . '</small>';
+            }
+        } else {
+            echo '<span style="color:#888;">' . esc_html__('Original (Unmarked)', 'pixelstamp-watermark') . '</span>';
+        }
     }
 }

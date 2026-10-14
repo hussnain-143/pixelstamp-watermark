@@ -2,9 +2,9 @@
 Contributors: ahmed143
 Tags: watermark, images, photo protection, auto watermark, photography
 Requires at least: 5.0
-Tested up to: 7.1
+Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.2.0
+Stable tag: 1.3.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -203,12 +203,26 @@ Yes. It works with standard WordPress attachments, so images used in posts, page
 
 == Screenshots ==
 
-1. PixelStamp admin dashboard with action buttons, global settings, and watermark preview.
+1. PixelStamp admin dashboard with action buttons, global settings, watermark preview, and live progress bar.
 2. Configuration settings panel showing text style, background box, and spacing/offset controls.
 3. Live preview panel with side-by-side before and after watermark comparison.
-4. Example image with a bottom-right text watermark applied.
+4. WordPress Media Library list view featuring the new real-time Watermark status tracking column.
 
 == Changelog ==
+
+= 1.3.0 =
+* Feature: Added real-time Watermark status column to the WordPress Media Library list view (shows Watermarked status and backup availability).
+* Feature: Restored the Status & Progress panel with live progress bar and per-image status reporting during batch operations.
+* Feature: Added System Diagnostics panel displaying GD extension and FreeType typography engine readiness.
+* Security & Reliability: Fixed backup filename collision issue by implementing unique attachment-ID hashed backup paths.
+* Security: Hardened backup storage directory with automated .htaccess access denial rules and directory silencers to prevent unauthorized downloads of unwatermarked originals.
+* Fix: Fixed multi-line watermark text sanitization, correctly preserving manual line breaks entered in the settings textarea.
+* Fix: Corrected GD background box opacity calculation to match the live CSS preview exactly.
+* Fix: Fixed JPEG rotation alpha channel rendering artifact that created a dark bounding box around rotated watermarks.
+* Fix: Added EXIF smartphone camera orientation detection and auto-rotation before watermarking.
+* Fix: Resolved stale attachment metadata overwrite on auto-apply upload hook.
+* Fix: Replaced modern JavaScript replaceAll with backwards-compatible regex replace for older browser support.
+* Compatibility: Fixed PHP 8.1+ float-to-int coordinate deprecation warnings in rounded rectangle rendering.
 
 = 1.2.0 =
 * Fixed watermark output not matching the live preview — corrected GD font-size point conversion (was using 0.75x multiplier instead of the correct 4/3x for 96 DPI rendering).
@@ -240,6 +254,9 @@ Yes. It works with standard WordPress attachments, so images used in posts, page
 * Added support for multi-line text and background boxes.
 
 == Upgrade Notice ==
+
+= 1.3.0 =
+Major stability and security update: adds WordPress Media Library watermark status tracking column, restores live progress bar feedback, fixes backup filename collisions with protected directory storage, corrects rotation on JPEGs, and fixes multi-line text preservation.
 
 = 1.2.0 =
 Critical fix: applied watermarks now match the live preview exactly. Font size, baseline positioning, and minimum size are all aligned between the preview and the actual GD rendering. Re-apply watermarks to existing images to get the corrected output.

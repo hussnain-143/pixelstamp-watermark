@@ -1,7 +1,8 @@
 <?php if (!defined('ABSPATH'))
     exit;
 
-
+$system_status = PixelStampProcessor::get_system_status();
+$ttf_ready = !empty($system_status['ttf_functions']) && !empty($system_status['ttf_probe_ok']);
 ?>
 
 <div class="wrap pixelstamp-wrap">
@@ -81,6 +82,43 @@
                             </div>
                         </div>
 
+                        <!-- Status & Progress -->
+                        <div class="postbox">
+                            <h2 class="hndle"><span><?php esc_html_e('Status & Progress', 'pixelstamp-watermark'); ?></span></h2>
+                            <div class="inside">
+                                <div id="pixelstamp-progress" class="progress-wrapper" style="display: none;" aria-live="polite">
+                                    <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                                        <div id="pixelstamp-progress-fill" class="progress-fill"></div>
+                                    </div>
+                                    <p id="pixelstamp-progress-text" class="progress-text"></p>
+                                </div>
+                                <p id="pixelstamp-idle-status" style="font-size: 12px; color: #666; margin: 0;">
+                                    <?php esc_html_e('Ready. Select images and click Apply Watermark to begin.', 'pixelstamp-watermark'); ?>
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- System Status -->
+                        <div class="postbox">
+                            <h2 class="hndle"><span><?php esc_html_e('System Diagnostics', 'pixelstamp-watermark'); ?></span></h2>
+                            <div class="inside">
+                                <p style="margin: 0 0 8px; font-size: 12px;">
+                                    <strong><?php esc_html_e('TTF Rendering:', 'pixelstamp-watermark'); ?></strong>
+                                    <?php if ($ttf_ready): ?>
+                                        <span style="color:#1da855; font-weight:600;"><?php esc_html_e('Active (Sharp Typography)', 'pixelstamp-watermark'); ?></span>
+                                    <?php else: ?>
+                                        <span style="color:#d63638; font-weight:600;"><?php esc_html_e('Fallback Bitmap Mode', 'pixelstamp-watermark'); ?></span>
+                                    <?php endif; ?>
+                                </p>
+                                <p style="margin: 0; font-size: 12px; color: #666;">
+                                    <strong><?php esc_html_e('GD Extension:', 'pixelstamp-watermark'); ?></strong>
+                                    <?php echo !empty($system_status['gd_loaded']) ? '<span style="color:#1da855;">Loaded</span>' : '<span style="color:#d63638;">Missing</span>'; ?>
+                                    &nbsp;|&nbsp;
+                                    <strong><?php esc_html_e('FreeType:', 'pixelstamp-watermark'); ?></strong>
+                                    <?php echo !empty($system_status['freetype_support']) ? '<span style="color:#1da855;">Enabled</span>' : '<span style="color:#d63638;">Disabled</span>'; ?>
+                                </p>
+                            </div>
+                        </div>
 
                     </div>
                 </div>
@@ -96,7 +134,7 @@
                                 
                                 <div class="config-row">
                                     <p><strong><?php esc_html_e('Watermark Text', 'pixelstamp-watermark'); ?></strong></p>
-                                    <textarea id="wm-text" placeholder="Enter your watermark text..." rows="1"><?php echo esc_textarea($settings['text'] ?? ''); ?></textarea>
+                                    <textarea id="wm-text" placeholder="Enter your watermark text..." rows="3"><?php echo esc_textarea($settings['text'] ?? ''); ?></textarea>
                                     <small style="color: #666; margin-top: 4px; display: block;"><?php esc_html_e('The text that will appear as your watermark.', 'pixelstamp-watermark'); ?></small>
                                 </div>
 

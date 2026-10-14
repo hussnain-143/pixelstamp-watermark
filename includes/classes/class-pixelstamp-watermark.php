@@ -38,18 +38,22 @@ class PixelStampWatermark {
 
     public function get_default_settings() {
         return [
-            'text' => '© PixelStamp',
-            'font' => 'inter',
-            'size' => 20,
-            'opacity' => 0.5,
-            'color' => '#ffffff',
-            'position' => 'bottom-right',
-            'use_box' => 0,
-            'box_bg' => '#000000',
-            'box_border' => '#ffffff',
+            'text'        => '© PixelStamp',
+            'font'        => 'inter',
+            'size'        => 20,
+            'opacity'     => 0.8,
+            'color'       => '#ffffff',
+            'position'    => 'bottom-right',
+            'use_box'     => 0,
+            'box_bg'      => '#000000',
+            'box_border'  => '#ffffff',
             'box_padding' => 10,
-            'box_radius' => 0,
-            'auto_apply' => 0
+            'box_radius'  => 0,
+            'offset_x'    => 0,
+            'offset_y'    => 0,
+            'rotation'    => 0,
+            'scale'       => 1.0,
+            'auto_apply'  => 0,
         ];
     }
 
@@ -63,7 +67,14 @@ class PixelStampWatermark {
             return $metadata;
         }
 
-        $this->process_image($attachment_id, $settings);
+        $applied = $this->process_image($attachment_id, $settings);
+        if ($applied) {
+            $refreshed_meta = wp_get_attachment_metadata($attachment_id);
+            if (!empty($refreshed_meta)) {
+                return $refreshed_meta;
+            }
+        }
+
         return $metadata;
     }
 
@@ -73,20 +84,18 @@ class PixelStampWatermark {
             return false;
         }
 
-        $backup_dir = $this->get_backup_dir();
-        $backup_path = $backup_dir . basename($file_path) . '.bak';
+        $backup_path = $this->get_backup_path($attachment_id, $file_path);
 
         if (!file_exists($backup_path)) {
-            if (!is_dir($backup_dir)) {
-                wp_mkdir_p($backup_dir);
-            }
             copy($file_path, $backup_path);
         } else {
+            // Restore from clean original backup before applying new watermark settings
             copy($backup_path, $file_path);
         }
 
         $applied = PixelStampProcessor::apply($file_path, $settings);
         if ($applied) {
+            update_post_meta($attachment_id, '_pixelstamp_watermarked', current_time('mysql'));
             $this->regenerate_attachment_metadata($attachment_id, $file_path);
         }
 
@@ -99,16 +108,48 @@ class PixelStampWatermark {
             return false;
         }
 
-        $backup_dir = $this->get_backup_dir();
-        $backup_path = $backup_dir . basename($file_path) . '.bak';
+        $backup_path = $this->get_existing_backup_path($attachment_id, $file_path);
 
-        if (file_exists($backup_path)) {
+        if ($backup_path && file_exists($backup_path)) {
             copy($backup_path, $file_path);
             wp_delete_file($backup_path);
+            delete_post_meta($attachment_id, '_pixelstamp_watermarked');
             $this->regenerate_attachment_metadata($attachment_id, $file_path);
             return true;
         }
         return false;
+    }
+
+    public function has_backup($attachment_id) {
+        $file_path = get_attached_file($attachment_id);
+        if (!$file_path) {
+            return false;
+        }
+        $backup_path = $this->get_existing_backup_path($attachment_id, $file_path);
+        return ($backup_path && file_exists($backup_path));
+    }
+
+    public function get_existing_backup_path($attachment_id, $file_path) {
+        // First check collision-safe path
+        $safe_path = $this->get_backup_path($attachment_id, $file_path, false);
+        if (file_exists($safe_path)) {
+            return $safe_path;
+        }
+
+        // Backward compatibility: check legacy filename path
+        $legacy_path = $this->get_backup_dir(false) . basename($file_path) . '.bak';
+        if (file_exists($legacy_path)) {
+            return $legacy_path;
+        }
+
+        return false;
+    }
+
+    public function get_backup_path($attachment_id, $file_path, $create_dir = true) {
+        $backup_dir = $this->get_backup_dir($create_dir);
+        $basename = sanitize_file_name(basename($file_path));
+        $hash = substr(md5($file_path), 0, 8);
+        return $backup_dir . intval($attachment_id) . '_' . $hash . '_' . $basename . '.bak';
     }
 
     private function regenerate_attachment_metadata($attachment_id, $file_path) {
@@ -125,9 +166,21 @@ class PixelStampWatermark {
         }
     }
 
-    private function get_backup_dir() {
+    private function get_backup_dir($create = true) {
         $upload_dir = wp_upload_dir();
         $backup_dir = $upload_dir['basedir'] . '/pixelstamp-watermark-backups/';
+
+        if ($create && !is_dir($backup_dir)) {
+            wp_mkdir_p($backup_dir);
+            // Protect backup files from direct web access
+            if (!file_exists($backup_dir . '.htaccess')) {
+                @file_put_contents($backup_dir . '.htaccess', "Deny from all\n<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n");
+            }
+            if (!file_exists($backup_dir . 'index.html')) {
+                @file_put_contents($backup_dir . 'index.html', '');
+            }
+        }
+
         return $backup_dir;
     }
 }
