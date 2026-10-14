@@ -14,14 +14,39 @@ class PixelStampProcessor {
         switch ($mime) {
             case 'image/jpeg':
                 $image = imagecreatefromjpeg($file_path);
+                if ($image && function_exists('exif_read_data')) {
+                    $exif = @exif_read_data($file_path);
+                    if (!empty($exif['Orientation'])) {
+                        switch ((int) $exif['Orientation']) {
+                            case 8:
+                                $rotated_exif = imagerotate($image, 90, 0);
+                                if ($rotated_exif) { imagedestroy($image); $image = $rotated_exif; }
+                                break;
+                            case 3:
+                                $rotated_exif = imagerotate($image, 180, 0);
+                                if ($rotated_exif) { imagedestroy($image); $image = $rotated_exif; }
+                                break;
+                            case 6:
+                                $rotated_exif = imagerotate($image, -90, 0);
+                                if ($rotated_exif) { imagedestroy($image); $image = $rotated_exif; }
+                                break;
+                        }
+                    }
+                }
                 break;
             case 'image/png':
                 $image = imagecreatefrompng($file_path);
-                imagealphablending($image, true);
-                imagesavealpha($image, true);
+                if ($image) {
+                    imagealphablending($image, true);
+                    imagesavealpha($image, true);
+                }
                 break;
             case 'image/webp':
                 $image = imagecreatefromwebp($file_path);
+                if ($image) {
+                    imagealphablending($image, true);
+                    imagesavealpha($image, true);
+                }
                 break;
             default:
                 return false;
@@ -144,8 +169,8 @@ class PixelStampProcessor {
         }
 
         $is_jpeg = ($mime === 'image/jpeg');
-        $box_merge_pct  = max(0, min(100, (int)($opacity * $opacity * 100))); // background effective opacity
-        $text_merge_pct = $merge_pct;                                        // text + border effective opacity
+        $box_merge_pct  = $merge_pct; // background effective opacity matches preview
+        $text_merge_pct = $merge_pct; // text + border effective opacity
 
         $layer_w = (int)ceil($box_w);
         $layer_h = (int)ceil($box_h);
@@ -158,9 +183,10 @@ class PixelStampProcessor {
             imagefill($temp, 0, 0, $transparent);
             imagealphablending($temp, true);
 
-            $wm_text_color   = imagecolorallocate($temp, $rgb[0], $rgb[1], $rgb[2]);
-            $wm_box_color    = imagecolorallocate($temp, $box_rgb[0], $box_rgb[1], $box_rgb[2]);
-            $wm_border_color = imagecolorallocate($temp, $border_rgb[0], $border_rgb[1], $border_rgb[2]);
+            $gd_alpha = max(0, min(127, (int) round((1.0 - $opacity) * 127)));
+            $wm_text_color   = imagecolorallocatealpha($temp, $rgb[0], $rgb[1], $rgb[2], $gd_alpha);
+            $wm_box_color    = imagecolorallocatealpha($temp, $box_rgb[0], $box_rgb[1], $box_rgb[2], $gd_alpha);
+            $wm_border_color = imagecolorallocatealpha($temp, $border_rgb[0], $border_rgb[1], $border_rgb[2], $gd_alpha);
 
             if ($use_box) {
                 if ($radius > 0) {
@@ -185,7 +211,8 @@ class PixelStampProcessor {
 
             imagealphablending($image, true);
             imagesavealpha($image, !$is_jpeg);
-            imagecopymerge($image, $rotated, $paste_x, $paste_y, 0, 0, $rot_w, $rot_h, $text_merge_pct);
+            // Use imagecopy for alpha-preserving rotation (avoids black bounding box artifact of imagecopymerge on JPEGs)
+            imagecopy($image, $rotated, $paste_x, $paste_y, 0, 0, $rot_w, $rot_h);
             imagedestroy($rotated);
         } else {
             $paste_x = (int)round($x);
@@ -366,8 +393,8 @@ class PixelStampProcessor {
         $d = (int)($radius * 2);
 
         imagefilledrectangle($img, $cx_l, (int)$y1, $cx_r, (int)$y2, $color);
-        imagefilledrectangle($img, (int)$x1, $cy_t, (int)$x1 + $radius - 1, $cy_b, $color);
-        imagefilledrectangle($img, (int)$x2 - $radius + 1, $cy_t, (int)$x2, $cy_b, $color);
+        imagefilledrectangle($img, (int)$x1, $cy_t, (int)round($x1 + $radius - 1), $cy_b, $color);
+        imagefilledrectangle($img, (int)round($x2 - $radius + 1), $cy_t, (int)$x2, $cy_b, $color);
         imagefilledarc($img, $cx_l, $cy_t, $d, $d, 180, 270, $color, IMG_ARC_PIE);
         imagefilledarc($img, $cx_r, $cy_t, $d, $d, 270, 360, $color, IMG_ARC_PIE);
         imagefilledarc($img, $cx_l, $cy_b, $d, $d, 90, 180, $color, IMG_ARC_PIE);
