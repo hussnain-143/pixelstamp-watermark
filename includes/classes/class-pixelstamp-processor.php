@@ -482,7 +482,10 @@ class PixelStampProcessor {
 
         foreach ($fallback_order as $path) {
             if (is_string($path) && file_exists($path)) {
-                return $path;
+                $real = @realpath($path);
+                $target = ($real !== false && $real !== '') ? $real : $path;
+                @putenv('GDFONTPATH=' . dirname($target));
+                return $target;
             }
         }
 
@@ -499,7 +502,10 @@ class PixelStampProcessor {
         if (filesize($font_path) <= 0) {
             return false;
         }
-        $probe = @imagettfbbox((float) $font_size, 0, $font_path, 'PixelStamp 123');
+        $real = @realpath($font_path);
+        $target = ($real !== false && $real !== '') ? $real : $font_path;
+        @putenv('GDFONTPATH=' . dirname($target));
+        $probe = @imagettfbbox((float) $font_size, 0, $target, 'PixelStamp 123');
         return $probe !== false;
     }
 

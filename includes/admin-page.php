@@ -2,157 +2,98 @@
     exit;
 
 $system_status = PixelStampProcessor::get_system_status();
-$ttf_ready = !empty($system_status['ttf_functions']) && !empty($system_status['ttf_probe_ok']);
+$ttf_ready = (!empty($system_status['gd_loaded']) && !empty($system_status['freetype_support'])) || (!empty($system_status['ttf_functions']) && !empty($system_status['ttf_probe_ok']));
 ?>
 
 <div class="wrap pixelstamp-wrap">
-    <h1><?php esc_html_e('PixelStamp Watermark – Watermarking', 'pixelstamp-watermark'); ?></h1>
-    <p style="margin-bottom: 24px; color: #666; font-size: 14px;">
-        <?php esc_html_e('Protect your photography with advanced watermarking. Configure your watermark settings and preview before applying to your media library.', 'pixelstamp-watermark'); ?>
-    </p>
+    <div class="pixelstamp-header-bar">
+        <div>
+            <h1><?php esc_html_e('PixelStamp Watermark', 'pixelstamp-watermark'); ?></h1>
+            <p class="pixelstamp-subtitle">
+                <?php esc_html_e('Configure your watermark, preview in real time, and protect your Media Library images.', 'pixelstamp-watermark'); ?>
+            </p>
+        </div>
+        <div class="pixelstamp-sys-pills">
+            <span class="sys-pill <?php echo !empty($system_status['gd_loaded']) ? 'sys-ok' : 'sys-err'; ?>">
+                GD: <?php echo !empty($system_status['gd_loaded']) ? esc_html__('Loaded', 'pixelstamp-watermark') : esc_html__('Missing', 'pixelstamp-watermark'); ?>
+            </span>
+            <span class="sys-pill <?php echo !empty($system_status['freetype_support']) ? 'sys-ok' : 'sys-err'; ?>">
+                FreeType: <?php echo !empty($system_status['freetype_support']) ? esc_html__('Enabled', 'pixelstamp-watermark') : esc_html__('Disabled', 'pixelstamp-watermark'); ?>
+            </span>
+        </div>
+    </div>
+
+    <!-- STICKY ACTION & PROGRESS TOOLBAR (Always visible while scrolling) -->
+    <div class="pixelstamp-sticky-bar">
+        <div class="sticky-bar-main">
+            <div class="sticky-bar-left">
+                <button type="button" id="select-images-btn" class="button button-primary pixelstamp-select-trigger">
+                    <?php esc_html_e('Select Images', 'pixelstamp-watermark'); ?>
+                </button>
+                <div id="selected-images-count">
+                    <strong><?php esc_html_e('0 images selected', 'pixelstamp-watermark'); ?></strong>
+                </div>
+                <label class="auto-apply-toggle" title="<?php esc_attr_e('Automatically apply watermarks to new images uploaded to your media library.', 'pixelstamp-watermark'); ?>">
+                    <input type="checkbox" id="wm-auto-apply" <?php checked($settings['auto_apply'] ?? 0, 1); ?>>
+                    <span><?php esc_html_e('Auto-apply on Upload', 'pixelstamp-watermark'); ?></span>
+                </label>
+            </div>
+
+            <div class="sticky-bar-actions">
+                <button type="button" id="apply-btn" class="button button-primary pixelstamp-apply-trigger" disabled>
+                    <?php esc_html_e('Apply Watermark', 'pixelstamp-watermark'); ?>
+                </button>
+                <button type="button" id="apply-all-btn" class="button button-secondary pixelstamp-apply-all-trigger">
+                    <?php esc_html_e('Apply to All', 'pixelstamp-watermark'); ?>
+                </button>
+                <button type="button" id="restore-btn" class="button button-secondary pixelstamp-restore-trigger" disabled>
+                    <?php esc_html_e('Restore Originals', 'pixelstamp-watermark'); ?>
+                </button>
+            </div>
+        </div>
+
+        <!-- Inline Progress Bar (Only shown during active processing) -->
+        <div id="pixelstamp-progress" class="progress-wrapper" style="display: none;" aria-live="polite">
+            <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div id="pixelstamp-progress-fill" class="progress-fill"></div>
+            </div>
+            <p id="pixelstamp-progress-text" class="progress-text"></p>
+        </div>
+        <p id="pixelstamp-idle-status" class="hidden" style="display: none;"></p>
+    </div>
 
     <div id="poststuff">
         <div id="post-body" class="metabox-holder">
-
-            <!-- Main Content Area -->
             <div id="post-body-content">
 
-                <!-- 1. ACTIONS & SETTINGS SECTION - Two Column Grid -->
-                <div class="main-top-row">
-                    <!-- Left: Actions & Selection -->
-                    <div class="postbox action-selection-box">
-                        <h2 class="hndle"><span><?php esc_html_e('Actions & Selection', 'pixelstamp-watermark'); ?></span></h2>
-                        <div class="inside">
-                            <div class="pixelstamp-main-actions">
-                                <p><?php esc_html_e('Select images from your media library to process. You can apply watermarks to specific images or your entire library.', 'pixelstamp-watermark'); ?></p>
-                                
-                                <button type="button" id="select-images-btn" class="button button-primary button-large">
-                                    <?php esc_html_e('Open Media Library', 'pixelstamp-watermark'); ?>
-                                </button>
-                                
-                                <div id="selected-images-count">
-                                    <strong><?php esc_html_e('0 images selected', 'pixelstamp-watermark'); ?></strong>
-                                </div>
-                                
-                                <div class="action-buttons-side">
-                                    <button type="button" id="apply-btn" class="button button-primary button-large" disabled>
-                                        <?php esc_html_e('Apply Watermark', 'pixelstamp-watermark'); ?>
-                                    </button>
-                                    <button type="button" id="apply-all-btn" class="button button-secondary button-large">
-                                        <?php esc_html_e('Apply to All', 'pixelstamp-watermark'); ?>
-                                    </button>
-                                    <button type="button" id="restore-btn" class="button button-secondary button-large" disabled>
-                                        <?php esc_html_e('Restore Originals', 'pixelstamp-watermark'); ?>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Right: Global Settings & Status -->
-                    <div class="aside-column">
-                        <!-- Global Settings -->
-                        <div class="postbox">
-                            <h2 class="hndle"><span><?php esc_html_e('Global Settings', 'pixelstamp-watermark'); ?></span></h2>
-                            <div class="inside">
-                                <div class="config-row">
-                                    <label>
-                                        <input type="checkbox" id="wm-auto-apply" <?php checked($settings['auto_apply'] ?? 0, 1); ?>>
-                                        <strong><?php esc_html_e('Auto-apply Watermark on Upload', 'pixelstamp-watermark'); ?></strong>
-                                    </label>
-                                </div>
-                                <p style="margin-top: 12px; font-size: 12px; color: #666;">
-                                    <?php esc_html_e('Automatically apply watermarks to new images uploaded to your media library.', 'pixelstamp-watermark'); ?>
-                                </p>
-                            </div>
-                        </div>
-
-                        <!-- Watermark Preview -->
-                        <div class="postbox">
-                            <h2 class="hndle"><span><?php esc_html_e('Watermark Preview', 'pixelstamp-watermark'); ?></span></h2>
-                            <div class="inside">
-                                <div id="focused-watermark-preview-container"
-                                    style="background: repeating-conic-gradient(#f0f0f1 0% 25%, transparent 0% 50%) 50% / 20px 20px; min-height: 140px; border: 2px solid #dcdcde; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; margin-bottom: 0;">
-                                    <div id="focused-watermark-overlay"
-                                        style="white-space: pre-wrap; text-align: center;"></div>
-                                </div>
-                                <p style="margin-top: 12px; font-size: 12px; color: #666; margin-bottom: 0;">
-                                    <?php esc_html_e('Live preview of your watermark as you configure settings.', 'pixelstamp-watermark'); ?>
-                                </p>
-                            </div>
-                        </div>
-
-                        <!-- Status & Progress -->
-                        <div class="postbox">
-                            <h2 class="hndle"><span><?php esc_html_e('Status & Progress', 'pixelstamp-watermark'); ?></span></h2>
-                            <div class="inside">
-                                <div id="pixelstamp-progress" class="progress-wrapper" style="display: none;" aria-live="polite">
-                                    <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                                        <div id="pixelstamp-progress-fill" class="progress-fill"></div>
-                                    </div>
-                                    <p id="pixelstamp-progress-text" class="progress-text"></p>
-                                </div>
-                                <p id="pixelstamp-idle-status" style="font-size: 12px; color: #666; margin: 0;">
-                                    <?php esc_html_e('Ready. Select images and click Apply Watermark to begin.', 'pixelstamp-watermark'); ?>
-                                </p>
-                            </div>
-                        </div>
-
-                        <!-- System Status -->
-                        <div class="postbox">
-                            <h2 class="hndle"><span><?php esc_html_e('System Diagnostics', 'pixelstamp-watermark'); ?></span></h2>
-                            <div class="inside">
-                                <p style="margin: 0 0 8px; font-size: 12px;">
-                                    <strong><?php esc_html_e('TTF Rendering:', 'pixelstamp-watermark'); ?></strong>
-                                    <?php if ($ttf_ready): ?>
-                                        <span style="color:#1da855; font-weight:600;"><?php esc_html_e('Active (Sharp Typography)', 'pixelstamp-watermark'); ?></span>
-                                    <?php else: ?>
-                                        <span style="color:#d63638; font-weight:600;"><?php esc_html_e('Fallback Bitmap Mode', 'pixelstamp-watermark'); ?></span>
-                                    <?php endif; ?>
-                                </p>
-                                <p style="margin: 0; font-size: 12px; color: #666;">
-                                    <strong><?php esc_html_e('GD Extension:', 'pixelstamp-watermark'); ?></strong>
-                                    <?php echo !empty($system_status['gd_loaded']) ? '<span style="color:#1da855;">Loaded</span>' : '<span style="color:#d63638;">Missing</span>'; ?>
-                                    &nbsp;|&nbsp;
-                                    <strong><?php esc_html_e('FreeType:', 'pixelstamp-watermark'); ?></strong>
-                                    <?php echo !empty($system_status['freetype_support']) ? '<span style="color:#1da855;">Enabled</span>' : '<span style="color:#d63638;">Disabled</span>'; ?>
-                                </p>
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
-
-                <!-- 2. CONFIGURATION GRID - Responsive Multi-Column -->
+                <!-- 1. COMPACT 3-COLUMN CONFIGURATION & BADGE PREVIEW GRID -->
                 <div class="postbox">
                     <h2 class="hndle"><span><?php esc_html_e('Configuration Settings', 'pixelstamp-watermark'); ?></span></h2>
                     <div class="inside">
                         <div class="config-grid">
-                            <!-- Text Style Partition -->
+                            <!-- Column 1: Text Style -->
                             <div class="config-partition">
                                 <h3><?php esc_html_e('Text Style', 'pixelstamp-watermark'); ?></h3>
-                                
+
                                 <div class="config-row">
                                     <p><strong><?php esc_html_e('Watermark Text', 'pixelstamp-watermark'); ?></strong></p>
-                                    <textarea id="wm-text" placeholder="Enter your watermark text..." rows="3"><?php echo esc_textarea($settings['text'] ?? ''); ?></textarea>
-                                    <small style="color: #666; margin-top: 4px; display: block;"><?php esc_html_e('The text that will appear as your watermark.', 'pixelstamp-watermark'); ?></small>
+                                    <textarea id="wm-text" placeholder="Enter your watermark text..." rows="2"><?php echo esc_textarea($settings['text'] ?? ''); ?></textarea>
                                 </div>
 
                                 <div class="config-row config-flex">
                                     <div class="config-col">
                                         <p><strong><?php esc_html_e('Font Family', 'pixelstamp-watermark'); ?></strong></p>
                                         <select id="wm-font">
-                                            <option value="inter" <?php selected($settings['font'] ?? 'inter', 'inter'); ?>>Inter (Sans-serif)</option>
-                                            <option value="arial" <?php selected($settings['font'] ?? 'inter', 'arial'); ?>>Arial (Sans-serif)</option>
+                                            <option value="inter" <?php selected($settings['font'] ?? 'inter', 'inter'); ?>>Inter (Sans)</option>
+                                            <option value="arial" <?php selected($settings['font'] ?? 'inter', 'arial'); ?>>Arial (Sans)</option>
                                             <option value="times" <?php selected($settings['font'] ?? 'inter', 'times'); ?>>Times (Serif)</option>
-                                            <option value="courier" <?php selected($settings['font'] ?? 'inter', 'courier'); ?>>Courier (Monospace)</option>
+                                            <option value="courier" <?php selected($settings['font'] ?? 'inter', 'courier'); ?>>Courier (Mono)</option>
                                         </select>
                                     </div>
                                     <div class="config-col">
-                                        <p><strong><?php esc_html_e('Font Size', 'pixelstamp-watermark'); ?></strong></p>
+                                        <p><strong><?php esc_html_e('Font Size (px)', 'pixelstamp-watermark'); ?></strong></p>
                                         <input type="number" id="wm-size" min="8" max="200" step="1"
                                             placeholder="20" value="<?php echo esc_attr($settings['size'] ?? 20); ?>">
-                                        <small style="color: #666; margin-top: 4px; display: block;">Pixels</small>
                                     </div>
                                 </div>
 
@@ -163,15 +104,14 @@ $ttf_ready = !empty($system_status['ttf_functions']) && !empty($system_status['t
                                             value="<?php echo esc_attr($settings['color'] ?? '#ffffff'); ?>">
                                     </div>
                                     <div class="config-col">
-                                        <p><strong><?php esc_html_e('Opacity', 'pixelstamp-watermark'); ?></strong></p>
+                                        <p><strong><?php esc_html_e('Opacity (0–1)', 'pixelstamp-watermark'); ?></strong></p>
                                         <input type="number" id="wm-opacity" step="0.1" min="0" max="1"
                                             value="<?php echo esc_attr($settings['opacity'] ?? 0.8); ?>">
-                                        <small style="color: #666; margin-top: 4px; display: block;">0 to 1</small>
                                     </div>
                                 </div>
 
                                 <div class="config-row">
-                                    <p><strong><?php esc_html_e('Watermark Position', 'pixelstamp-watermark'); ?></strong></p>
+                                    <p><strong><?php esc_html_e('Position', 'pixelstamp-watermark'); ?></strong></p>
                                     <select id="wm-position">
                                         <option value="top-left" <?php selected($settings['position'] ?? 'bottom-right', 'top-left'); ?>><?php esc_html_e('Top Left', 'pixelstamp-watermark'); ?></option>
                                         <option value="top-right" <?php selected($settings['position'] ?? 'bottom-right', 'top-right'); ?>><?php esc_html_e('Top Right', 'pixelstamp-watermark'); ?></option>
@@ -182,24 +122,22 @@ $ttf_ready = !empty($system_status['ttf_functions']) && !empty($system_status['t
                                 </div>
                             </div>
 
-                            <!-- Box Styling Partition -->
+                            <!-- Column 2: Background Box & Spacing -->
                             <div class="config-partition">
-                                <h3><?php esc_html_e('Background Box', 'pixelstamp-watermark'); ?></h3>
-                                
+                                <h3><?php esc_html_e('Box & Spacing', 'pixelstamp-watermark'); ?></h3>
+
                                 <div class="config-row">
                                     <label>
                                         <input type="checkbox" id="wm-use-box" <?php checked($settings['use_box'] ?? 0, 1); ?>>
                                         <strong><?php esc_html_e('Enable Background Box', 'pixelstamp-watermark'); ?></strong>
                                     </label>
-                                    <small style="color: #666; margin-top: 8px; display: block;"><?php esc_html_e('Add a styled background behind your watermark text.', 'pixelstamp-watermark'); ?></small>
                                 </div>
 
                                 <div id="box-settings-container"
-                                    style="<?php echo !empty($settings['use_box']) ? '' : 'display:none;'; ?> margin-top: 16px; padding-top: 16px; border-top: 1px solid #dcdcde;">
-                                    
+                                    style="<?php echo !empty($settings['use_box']) ? '' : 'display:none;'; ?> margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid #dcdcde;">
                                     <div class="config-row config-flex">
                                         <div class="config-col">
-                                            <p><strong><?php esc_html_e('Background Color', 'pixelstamp-watermark'); ?></strong></p>
+                                            <p><strong><?php esc_html_e('Box Color', 'pixelstamp-watermark'); ?></strong></p>
                                             <input type="color" id="wm-box-bg" class="small-color-box"
                                                 value="<?php echo esc_attr($settings['box_bg'] ?? '#000000'); ?>">
                                         </div>
@@ -212,77 +150,100 @@ $ttf_ready = !empty($system_status['ttf_functions']) && !empty($system_status['t
 
                                     <div class="config-row config-flex">
                                         <div class="config-col">
-                                            <p><strong><?php esc_html_e('Box Padding', 'pixelstamp-watermark'); ?></strong></p>
+                                            <p><strong><?php esc_html_e('Padding (px)', 'pixelstamp-watermark'); ?></strong></p>
                                             <input type="number" id="wm-box-padding" min="0" max="50" step="1"
                                                 value="<?php echo esc_attr($settings['box_padding'] ?? 10); ?>">
-                                            <small style="color: #666; margin-top: 4px; display: block;">Pixels</small>
                                         </div>
                                         <div class="config-col">
-                                            <p><strong><?php esc_html_e('Corner Radius', 'pixelstamp-watermark'); ?></strong></p>
+                                            <p><strong><?php esc_html_e('Radius (px)', 'pixelstamp-watermark'); ?></strong></p>
                                             <input type="number" id="wm-box-radius" min="0" max="100" step="1"
                                                 value="<?php echo esc_attr($settings['box_radius'] ?? 0); ?>">
-                                            <small style="color: #666; margin-top: 4px; display: block;">Pixels (0 = Sharp)</small>
                                         </div>
+                                    </div>
+                                </div>
+
+                                <div class="config-row config-flex">
+                                    <div class="config-col">
+                                        <p><strong><?php esc_html_e('Offset X (px)', 'pixelstamp-watermark'); ?></strong></p>
+                                        <input type="number" id="wm-offset-x" min="-500" max="500" step="1"
+                                            placeholder="0" value="<?php echo esc_attr($settings['offset_x'] ?? 0); ?>">
+                                    </div>
+                                    <div class="config-col">
+                                        <p><strong><?php esc_html_e('Offset Y (px)', 'pixelstamp-watermark'); ?></strong></p>
+                                        <input type="number" id="wm-offset-y" min="-500" max="500" step="1"
+                                            placeholder="0" value="<?php echo esc_attr($settings['offset_y'] ?? 0); ?>">
+                                    </div>
+                                </div>
+
+                                <div class="config-row config-flex">
+                                    <div class="config-col">
+                                        <p><strong><?php esc_html_e('Rotation (°)', 'pixelstamp-watermark'); ?></strong></p>
+                                        <input type="number" id="wm-rotation" min="-360" max="360" step="1"
+                                            placeholder="0" value="<?php echo esc_attr($settings['rotation'] ?? 0); ?>">
+                                    </div>
+                                    <div class="config-col">
+                                        <p><strong><?php esc_html_e('Scale (0.5–3x)', 'pixelstamp-watermark'); ?></strong></p>
+                                        <input type="number" id="wm-scale" min="0.5" max="3" step="0.1"
+                                            placeholder="1" value="<?php echo esc_attr($settings['scale'] ?? 1); ?>">
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Spacing & Offset Partition -->
-                            <div class="config-partition">
-                                <h3><?php esc_html_e('Spacing & Offset', 'pixelstamp-watermark'); ?></h3>
-                                
-                                <div class="config-row">
-                                    <p><strong><?php esc_html_e('Horizontal Offset', 'pixelstamp-watermark'); ?></strong></p>
-                                    <input type="number" id="wm-offset-x" min="-500" max="500" step="1"
-                                        placeholder="0" value="<?php echo esc_attr($settings['offset_x'] ?? 0); ?>">
-                                    <small style="color: #666; margin-top: 4px; display: block;">Pixels from position</small>
-                                </div>
+                            <!-- Column 3: Live Badge Preview & Quick Actions -->
+                            <div class="config-partition preview-partition">
+                                <h3><?php esc_html_e('Badge Preview', 'pixelstamp-watermark'); ?></h3>
 
-                                <div class="config-row">
-                                    <p><strong><?php esc_html_e('Vertical Offset', 'pixelstamp-watermark'); ?></strong></p>
-                                    <input type="number" id="wm-offset-y" min="-500" max="500" step="1"
-                                        placeholder="0" value="<?php echo esc_attr($settings['offset_y'] ?? 0); ?>">
-                                    <small style="color: #666; margin-top: 4px; display: block;">Pixels from position</small>
+                                <div id="focused-watermark-preview-container" class="focused-preview-box">
+                                    <div id="focused-watermark-overlay" style="white-space: pre-wrap; text-align: center;"></div>
                                 </div>
+                                <p class="preview-caption">
+                                    <?php esc_html_e('Live watermark style preview. Select an image to compare before and after below.', 'pixelstamp-watermark'); ?>
+                                </p>
 
-                                <div class="config-row">
-                                    <p><strong><?php esc_html_e('Rotation (Degrees)', 'pixelstamp-watermark'); ?></strong></p>
-                                    <input type="number" id="wm-rotation" min="-360" max="360" step="1"
-                                        placeholder="0" value="<?php echo esc_attr($settings['rotation'] ?? 0); ?>">
-                                    <small style="color: #666; margin-top: 4px; display: block;">0 to 360 degrees</small>
-                                </div>
-
-                                <div class="config-row">
-                                    <p><strong><?php esc_html_e('Scale', 'pixelstamp-watermark'); ?></strong></p>
-                                    <input type="number" id="wm-scale" min="0.5" max="3" step="0.1"
-                                        placeholder="1" value="<?php echo esc_attr($settings['scale'] ?? 1); ?>">
-                                    <small style="color: #666; margin-top: 4px; display: block;">Multiplier (0.5 to 3)</small>
+                                <div class="quick-config-actions">
+                                    <button type="button" class="button button-secondary pixelstamp-select-trigger">
+                                        <?php esc_html_e('Select Images', 'pixelstamp-watermark'); ?>
+                                    </button>
+                                    <button type="button" class="button button-primary pixelstamp-apply-trigger" disabled>
+                                        <?php esc_html_e('Apply Watermark', 'pixelstamp-watermark'); ?>
+                                    </button>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 3. LIVE PREVIEW - Full Width Comparison -->
+                <!-- 2. LIVE IMAGE COMPARISON (With inline action buttons so no scrolling up is needed) -->
                 <div class="postbox">
-                    <h2 class="hndle"><span><?php esc_html_e('Live Preview', 'pixelstamp-watermark'); ?></span></h2>
+                    <div class="hndle preview-header-bar">
+                        <span><?php esc_html_e('Live Image Preview (Before & After)', 'pixelstamp-watermark'); ?></span>
+                        <div class="preview-header-actions">
+                            <button type="button" class="button button-small pixelstamp-select-trigger">
+                                <?php esc_html_e('Change Image', 'pixelstamp-watermark'); ?>
+                            </button>
+                            <button type="button" class="button button-primary button-small pixelstamp-apply-trigger" disabled>
+                                <?php esc_html_e('Apply Watermark', 'pixelstamp-watermark'); ?>
+                            </button>
+                            <button type="button" class="button button-small pixelstamp-restore-trigger" disabled>
+                                <?php esc_html_e('Restore Original', 'pixelstamp-watermark'); ?>
+                            </button>
+                        </div>
+                    </div>
                     <div class="inside">
-                        <p style="margin: 0 0 16px 0; color: #666; font-size: 13px;">
-                            <?php esc_html_e('Side-by-side comparison of your image before and after watermarking.', 'pixelstamp-watermark'); ?>
-                        </p>
-                        
                         <div class="preview-container main-preview">
                             <div class="preview-col" id="preview-col-before">
-                                <div class="preview-placeholder" id="preview-placeholder">
-                                    <?php esc_html_e('Original Image', 'pixelstamp-watermark'); ?>
+                                <div class="preview-placeholder pixelstamp-select-trigger" id="preview-placeholder" title="<?php esc_attr_e('Click to select images from Media Library', 'pixelstamp-watermark'); ?>">
+                                    <span class="dashicons dashicons-format-image"></span>
+                                    <span><?php esc_html_e('Click to select an image for preview', 'pixelstamp-watermark'); ?></span>
                                 </div>
                                 <img src="" id="preview-img-before" class="preview-img" style="display: none;" alt="Before">
                                 <div class="preview-label label-before"><?php esc_html_e('BEFORE', 'pixelstamp-watermark'); ?></div>
                             </div>
 
                             <div class="preview-col" id="preview-col-after">
-                                <div class="preview-placeholder" id="preview-placeholder-after">
-                                    <?php esc_html_e('Watermarked Preview', 'pixelstamp-watermark'); ?>
+                                <div class="preview-placeholder pixelstamp-select-trigger" id="preview-placeholder-after" title="<?php esc_attr_e('Click to select images from Media Library', 'pixelstamp-watermark'); ?>">
+                                    <span class="dashicons dashicons-format-gallery"></span>
+                                    <span><?php esc_html_e('Watermarked Preview', 'pixelstamp-watermark'); ?></span>
                                 </div>
                                 <div class="preview-image-wrapper" style="position: relative; display: inline-block; max-width: 100%; max-height: 100%;">
                                     <img src="" id="preview-img-after" class="preview-img" style="display: none;" alt="After">
@@ -295,7 +256,6 @@ $ttf_ready = !empty($system_status['ttf_functions']) && !empty($system_status['t
                 </div>
 
             </div>
-
         </div>
     </div>
 </div>

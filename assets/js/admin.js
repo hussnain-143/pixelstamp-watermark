@@ -20,7 +20,7 @@ jQuery(document).ready(function($) {
 
 
     // Media Uploader
-    $('#select-images-btn').on('click', function(e) {
+    $(document).on('click', '#select-images-btn, .pixelstamp-select-trigger', function(e) {
         e.preventDefault();
         if (mediaUploader) { mediaUploader.open(); return; }
 
@@ -39,10 +39,10 @@ jQuery(document).ready(function($) {
                 $('#selected-images-count').text(selectedIds.length + i18n.selected);
                 const firstImage = attachments[0];
                 updatePreviewImage(firstImage.url);
-                $('#apply-btn, #restore-btn').prop('disabled', false);
+                $('#apply-btn, #restore-btn, .pixelstamp-apply-trigger, .pixelstamp-restore-trigger').prop('disabled', false);
             } else {
                 resetPreview();
-                $('#apply-btn, #restore-btn').prop('disabled', true);
+                $('#apply-btn, #restore-btn, .pixelstamp-apply-trigger, .pixelstamp-restore-trigger').prop('disabled', true);
             }
         });
 
@@ -278,7 +278,7 @@ jQuery(document).ready(function($) {
 
 
     // Apply Watermark
-    $('#apply-btn').on('click', function() {
+    $(document).on('click', '#apply-btn, .pixelstamp-apply-trigger', function() {
         processBatch(selectedIds, 'pixelstamp_apply');
     });
 
@@ -305,7 +305,7 @@ jQuery(document).ready(function($) {
     });
 
     // Restore Original
-    $('#restore-btn').on('click', function() {
+    $(document).on('click', '#restore-btn, .pixelstamp-restore-trigger', function() {
         processBatch(selectedIds, 'pixelstamp_restore');
     });
 
@@ -401,7 +401,7 @@ jQuery(document).ready(function($) {
             auto_apply: $('#wm-auto-apply').is(':checked') ? 1 : 0
         };
 
-        $('#apply-btn, #restore-btn, #select-images-btn, #apply-all-btn').prop('disabled', true);
+        $('#apply-btn, #restore-btn, #select-images-btn, #apply-all-btn, .pixelstamp-apply-trigger, .pixelstamp-restore-trigger, .pixelstamp-select-trigger').prop('disabled', true);
         const isRestore = action === 'pixelstamp_restore';
         showToast(isRestore ? i18n.restoring : i18n.applying, 'info');
         showProgress(0, ids.length);
@@ -446,7 +446,10 @@ jQuery(document).ready(function($) {
         hideProgress();
         const completedMessage = formatCompleteMessage(successCount, total);
         showToast(completedMessage, successCount === total ? 'success' : (successCount > 0 ? 'info' : 'error'));
-        $('#apply-btn, #restore-btn, #select-images-btn, #apply-all-btn').prop('disabled', false);
+        $('#select-images-btn, #apply-all-btn, .pixelstamp-select-trigger').prop('disabled', false);
+        if (selectedIds.length > 0) {
+            $('#apply-btn, #restore-btn, .pixelstamp-apply-trigger, .pixelstamp-restore-trigger').prop('disabled', false);
+        }
     }
 
     function showToast(msg, type = 'info') {
