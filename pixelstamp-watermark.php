@@ -4,7 +4,7 @@
  * Description: Add customizable text watermarks to your images with auto-watermark on upload, bulk media processing, and original image restoration.
  * Version:           1.3.0
  * Requires at least: 5.0
- * Tested up to:      6.8
+ * Tested up to:      7.1
  * Author:            Hussnain Ahmed
  * License:           GPL-2.0+
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
