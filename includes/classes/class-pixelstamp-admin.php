@@ -20,6 +20,7 @@ class PixelStampWatermarkAdmin {
         add_action('wp_ajax_pixelstamp_restore', [$this, 'ajax_restore_image']);
         add_action('wp_ajax_pixelstamp_get_all_ids', [$this, 'ajax_get_all_ids']);
         add_action('wp_ajax_pixelstamp_save_settings', [$this, 'ajax_save_settings']);
+        add_action('wp_ajax_pixelstamp_original_image', [$this, 'ajax_original_image']);
         add_action('plugin_action_links_' . plugin_basename(PIXELSTAMP_WATERMARK_PATH . 'pixelstamp-watermark.php'), [$this, 'add_plugin_action_links']);
         add_filter('manage_media_columns', [$this, 'add_media_columns']);
         add_action('manage_media_custom_column', [$this, 'render_media_custom_column'], 10, 2);
@@ -125,6 +126,7 @@ class PixelStampWatermarkAdmin {
         $attachment_ids = isset($_POST['ids']) ? array_map('intval', (array) $_POST['ids']) : [];
         $raw_settings = isset($_POST['settings']) && is_array($_POST['settings']) ? wp_unslash($_POST['settings']) : [];
         $settings = !empty($raw_settings) ? $this->sanitize_settings($raw_settings) : get_option('pixelstamp_settings', $this->plugin->get_default_settings());
+        $stamp = isset($_POST['stamp']) && is_array($_POST['stamp']) ? wp_unslash($_POST['stamp']) : null;
 
         if (!empty($raw_settings)) {
             $existing = get_option('pixelstamp_settings', []);
@@ -136,7 +138,7 @@ class PixelStampWatermarkAdmin {
         $results = [];
         $success_count = 0;
         foreach ($attachment_ids as $id) {
-            $ok = (bool) $this->plugin->process_image($id, $settings);
+            $ok = (bool) $this->plugin->process_image($id, $settings, $stamp);
             $results[$id] = $ok;
             if ($ok) {
                 $success_count++;
@@ -205,6 +207,36 @@ class PixelStampWatermarkAdmin {
         update_option('pixelstamp_settings', $settings);
 
         wp_send_json_success(__('Settings saved automatically.', 'pixelstamp-watermark'));
+    }
+
+    public function ajax_original_image() {
+        check_ajax_referer('pixelstamp_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            status_header(403);
+            exit;
+        }
+
+        $attachment_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+        if ($attachment_id <= 0) {
+            status_header(404);
+            exit;
+        }
+
+        $file_path = get_attached_file($attachment_id);
+        if (!$file_path || !file_exists($file_path)) {
+            status_header(404);
+            exit;
+        }
+
+        $backup_path = $this->plugin->get_existing_backup_path($attachment_id, $file_path);
+        $source_path = ($backup_path && file_exists($backup_path)) ? $backup_path : $file_path;
+
+        $mime = get_post_mime_type($attachment_id) ?: 'image/jpeg';
+        nocache_headers();
+        header('Content-Type: ' . $mime);
+        header('Content-Length: ' . filesize($source_path));
+        readfile($source_path);
+        exit;
     }
 
     private function sanitize_settings($settings) {

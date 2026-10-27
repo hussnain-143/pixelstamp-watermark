@@ -236,7 +236,9 @@ $ttf_ready = (!empty($system_status['gd_loaded']) && !empty($system_status['free
                                     <span class="dashicons dashicons-format-image"></span>
                                     <span><?php esc_html_e('Click to select an image for preview', 'pixelstamp-watermark'); ?></span>
                                 </div>
-                                <img src="" id="preview-img-before" class="preview-img" style="display: none;" alt="Before">
+                                <div class="preview-image-wrapper">
+                                    <img src="" id="preview-img-before" class="preview-img" style="display: none;" alt="Before">
+                                </div>
                                 <div class="preview-label label-before"><?php esc_html_e('BEFORE', 'pixelstamp-watermark'); ?></div>
                             </div>
 
@@ -245,7 +247,7 @@ $ttf_ready = (!empty($system_status['gd_loaded']) && !empty($system_status['free
                                     <span class="dashicons dashicons-format-gallery"></span>
                                     <span><?php esc_html_e('Watermarked Preview', 'pixelstamp-watermark'); ?></span>
                                 </div>
-                                <div class="preview-image-wrapper" style="position: relative; display: inline-block; max-width: 100%; max-height: 100%;">
+                                <div class="preview-image-wrapper">
                                     <img src="" id="preview-img-after" class="preview-img" style="display: none;" alt="After">
                                     <div id="watermark-preview-overlay" class="watermark-overlay"></div>
                                 </div>

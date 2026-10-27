@@ -6,7 +6,7 @@ class PixelStampProcessor {
         return function_exists('imagettftext') && function_exists('imagettfbbox');
     }
 
-    public static function apply($file_path, $settings) {
+    public static function apply($file_path, $settings, $stamp = null) {
         $info = getimagesize($file_path);
         if (!$info) return false;
 
@@ -85,11 +85,93 @@ class PixelStampProcessor {
         // Apply scale to font size
         $font_size = $font_size * $scale;
 
-        // GD's imagettftext $size parameter behaves as approximate pixel height of the
-        // em-square (it internally uses 72 DPI assumption, but the rendered glyph size
-        // matches the numeric value in pixels). CSS font-size:Xpx also sets the em-square
-        // height to X pixels. So we use $font_size directly — no conversion needed.
-        $font_size_pt = $font_size;
+        // If a pre-rendered client canvas stamp is provided, composite it directly for 100% pixel-identical output
+        if (is_array($stamp) && !empty($stamp['png_base64']) && !empty($stamp['ref_width'])) {
+            $raw_b64 = (string) $stamp['png_base64'];
+            if (strpos($raw_b64, 'base64,') !== false) {
+                $raw_b64 = substr($raw_b64, strpos($raw_b64, 'base64,') + 7);
+            }
+            $decoded_png = base64_decode($raw_b64, true);
+            if ($decoded_png !== false && function_exists('imagecreatefromstring')) {
+                $stamp_img = @imagecreatefromstring($decoded_png);
+                if ($stamp_img) {
+                    $ref_w = max(1.0, floatval($stamp['ref_width']));
+                    $ratio = $width / $ref_w;
+
+                    $src_w = imagesx($stamp_img);
+                    $src_h = imagesy($stamp_img);
+
+                    $box_w = floatval($stamp['box_w'] ?? $src_w) * $ratio;
+                    $box_h = floatval($stamp['box_h'] ?? $src_h) * $ratio;
+                    $rot_w = max(1, (int) round(floatval($stamp['rot_w'] ?? $src_w) * $ratio));
+                    $rot_h = max(1, (int) round(floatval($stamp['rot_h'] ?? $src_h) * $ratio));
+
+                    $margin = $width * 0.02;
+                    $scaled_offset_x = ($width / 400) * $offset_x;
+                    $scaled_offset_y = ($width / 400) * $offset_y;
+
+                    switch ($position) {
+                        case 'top-left':
+                            $x = $margin + $scaled_offset_x;
+                            $y = $margin + $scaled_offset_y;
+                            break;
+                        case 'top-right':
+                            $x = $width - $box_w - $margin - $scaled_offset_x;
+                            $y = $margin + $scaled_offset_y;
+                            break;
+                        case 'bottom-left':
+                            $x = $margin + $scaled_offset_x;
+                            $y = $height - $box_h - $margin - $scaled_offset_y;
+                            break;
+                        case 'bottom-right':
+                            $x = $width - $box_w - $margin - $scaled_offset_x;
+                            $y = $height - $box_h - $margin - $scaled_offset_y;
+                            break;
+                        case 'center':
+                            $x = ($width - $box_w) / 2 + $scaled_offset_x;
+                            $y = ($height - $box_h) / 2 + $scaled_offset_y;
+                            break;
+                        default:
+                            $x = $width - $box_w - $margin - $scaled_offset_x;
+                            $y = $height - $box_h - $margin - $scaled_offset_y;
+                    }
+
+                    $scaled_stamp = imagecreatetruecolor($rot_w, $rot_h);
+                    imagealphablending($scaled_stamp, false);
+                    imagesavealpha($scaled_stamp, true);
+                    $trans = imagecolorallocatealpha($scaled_stamp, 0, 0, 0, 127);
+                    imagefill($scaled_stamp, 0, 0, $trans);
+                    imagecopyresampled($scaled_stamp, $stamp_img, 0, 0, 0, 0, $rot_w, $rot_h, $src_w, $src_h);
+                    imagedestroy($stamp_img);
+
+                    $paste_x = (int) round($x + $box_w / 2 - $rot_w / 2);
+                    $paste_y = (int) round($y + $box_h / 2 - $rot_h / 2);
+
+                    $is_jpeg = ($mime === 'image/jpeg');
+                    imagealphablending($image, true);
+                    imagesavealpha($image, !$is_jpeg);
+                    imagecopy($image, $scaled_stamp, $paste_x, $paste_y, 0, 0, $rot_w, $rot_h);
+                    imagedestroy($scaled_stamp);
+
+                    switch ($mime) {
+                        case 'image/jpeg':
+                            imagejpeg($image, $file_path, 90);
+                            break;
+                        case 'image/png':
+                            imagepng($image, $file_path);
+                            break;
+                        case 'image/webp':
+                            imagewebp($image, $file_path, 80);
+                            break;
+                    }
+                    imagedestroy($image);
+                    return true;
+                }
+            }
+        }
+
+        // Convert CSS pixel size to GD 96-DPI points (72 / 96 = 0.75) so server-side TTF matches CSS em-square
+        $font_size_pt = $font_size * 0.75;
 
         // Font Selection (supports plugin fonts + common OS font locations).
         $font_path = self::resolve_working_ttf_font($font_choice, $font_size_pt);
@@ -320,7 +402,7 @@ class PixelStampProcessor {
      * Draw text lines on an image resource.
      */
     private static function draw_text_lines($image, $lines, $use_ttf, $font_size, $font_path, $base_x, $base_y, $pad_x, $pad_y, $line_height, $max_line_width, $text_color, $use_box = true, $font_choice = '') {
-        $font_size_pt = $font_size;
+        $font_size_pt = $font_size * 0.75;
         $pad_x = $use_box ? $pad_x : 0;
         $pad_y = $use_box ? $pad_y : 0;
 
