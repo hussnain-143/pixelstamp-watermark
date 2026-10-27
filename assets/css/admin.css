@@ -1,12 +1,9 @@
 /* ============================================================================
-   PixelStamp Pro - Enhanced WordPress Admin Styles
-   Modern Grid Layout with Improved User Experience
+   PixelStamp Watermark - Modern Compact WordPress Admin Styles
    ============================================================================ */
 
-/* Bundled Inter font — load the EXACT same file the PHP renderer uses so the
-   live preview pixel-matches the applied watermark. Without this, the browser
-   falls back to its default sans-serif and the previewed text width differs
-   from the GD-rendered output. */
+/* Bundled fonts — load the EXACT same files the PHP renderer uses so the
+   live preview pixel-matches the applied watermark. */
 @font-face {
     font-family: 'Inter';
     font-style: normal;
@@ -39,159 +36,218 @@
     src: local('Courier New'), url('../fonts/Courier.ttf') format('truetype');
 }
 
-/* Base Styles */
+/* Base Variables */
 :root {
     --lm-primary: #2271b1;
+    --lm-primary-hover: #135e96;
     --lm-text-primary: #1d2327;
-    --lm-text-secondary: #666;
+    --lm-text-secondary: #50575e;
     --lm-border-light: #dcdcde;
     --lm-border-dark: #8c8f94;
-    --lm-bg-light: #f8f9fa;
-    --lm-bg-white: #fff;
-    --lm-spacing-xs: 8px;
-    --lm-spacing-sm: 12px;
-    --lm-spacing-md: 16px;
-    --lm-spacing-lg: 20px;
-    --lm-spacing-xl: 24px;
-    --lm-spacing-2xl: 32px;
+    --lm-bg-light: #f6f7f7;
+    --lm-bg-white: #ffffff;
+    --lm-spacing-xs: 6px;
+    --lm-spacing-sm: 10px;
+    --lm-spacing-md: 14px;
+    --lm-spacing-lg: 16px;
+    --lm-spacing-xl: 20px;
     --lm-radius-sm: 4px;
     --lm-radius-md: 8px;
-    --lm-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --lm-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
     --lm-shadow-md: inset 0 0 10px rgba(0, 0, 0, 0.02);
 }
 
 .pixelstamp-wrap {
-    margin-top: var(--lm-spacing-xl);
+    margin-top: 12px;
+    max-width: 1440px;
 }
 
-
-
-/* ============================================================================
-   BUTTON STYLES - Responsive and Accessible
-   ============================================================================ */
-
-.button-large {
-    width: 100% !important;
-    max-width: 240px !important;
-    height: 40px !important;
-    line-height: 38px !important;
-    font-size: 14px !important;
-    font-weight: 500 !important;
-    justify-content: center;
-    display: inline-flex;
-    align-items: center;
-    border-radius: var(--lm-radius-sm);
-    transition: all 0.2s ease;
+.pixelstamp-wrap #poststuff {
+    padding-top: 0;
 }
-
-.button-large:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-/* ============================================================================
-   MAIN LAYOUT - Responsive Grid System
-   ============================================================================ */
 
 #post-body-content {
     width: 100% !important;
     min-width: 100% !important;
+    margin-bottom: 0;
 }
 
-.main-top-row {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: var(--lm-spacing-xl);
-    margin-bottom: var(--lm-spacing-xl);
-    align-items: start;
-}
+/* ============================================================================
+   HEADER BAR & SYSTEM PILLS
+   ============================================================================ */
 
-.action-selection-box {
-    margin-bottom: 0 !important;
-    grid-column: 1;
-}
-
-.aside-column {
+.pixelstamp-header-bar {
     display: flex;
-    flex-direction: column;
-    gap: var(--lm-spacing-lg);
-    grid-column: 2;
-}
-
-.aside-column .postbox {
-    margin-bottom: 0 !important;
-}
-
-.pixelstamp-main-actions {
-    display: flex;
-    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
     gap: var(--lm-spacing-md);
+    margin-bottom: 12px;
+    flex-wrap: wrap;
 }
 
-.pixelstamp-main-actions p {
-    margin: 0 0 var(--lm-spacing-md) 0;
+.pixelstamp-header-bar h1 {
+    padding: 0;
+    margin: 0 0 2px 0;
+    font-size: 21px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.pixelstamp-subtitle {
+    margin: 0;
     color: var(--lm-text-secondary);
     font-size: 13px;
 }
 
-.action-buttons-side {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: var(--lm-spacing-md);
-    align-items: stretch;
-    width: 100%;
+.pixelstamp-sys-pills {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
-.action-buttons-side .button {
-    width: 100%;
-    white-space: normal;
-    height: auto;
-    padding: var(--lm-spacing-md);
-    line-height: 1.4;
-}
-
-#selected-images-count {
-    padding: var(--lm-spacing-sm);
-    background: var(--lm-bg-light);
-    border-left: 4px solid var(--lm-primary);
-    border-radius: var(--lm-radius-sm);
+.sys-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
     font-weight: 600;
-    color: var(--lm-text-primary);
+    background: var(--lm-bg-white);
+    border: 1px solid var(--lm-border-light);
+}
+
+.sys-pill.sys-ok {
+    color: #137333;
+    background: #e6f4ea;
+    border-color: #ceead6;
+}
+
+.sys-pill.sys-err {
+    color: #b32d2e;
+    background: #fce8e6;
+    border-color: #fad2cf;
 }
 
 /* ============================================================================
-   CONFIGURATION GRID - Responsive Multi-Column Layout
+   STICKY ACTION & PROGRESS TOOLBAR
+   ============================================================================ */
+
+.pixelstamp-sticky-bar {
+    position: sticky;
+    top: 40px;
+    z-index: 90;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--lm-border-light);
+    border-left: 4px solid var(--lm-primary);
+    border-radius: var(--lm-radius-md);
+    padding: 10px 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+}
+
+.sticky-bar-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.sticky-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.sticky-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.sticky-bar-left .button,
+.sticky-bar-actions .button {
+    min-height: 34px;
+    line-height: 32px;
+    padding: 0 14px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: var(--lm-radius-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#selected-images-count {
+    padding: 5px 12px;
+    background: var(--lm-bg-light);
+    border: 1px solid var(--lm-border-light);
+    border-radius: var(--lm-radius-sm);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--lm-text-primary);
+    white-space: nowrap;
+}
+
+.auto-apply-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: var(--lm-bg-light);
+    border: 1px solid var(--lm-border-light);
+    border-radius: var(--lm-radius-sm);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--lm-text-primary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.auto-apply-toggle input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+/* ============================================================================
+   CONFIGURATION GRID - Compact 3-Column Layout (Zero Empty Space)
    ============================================================================ */
 
 .config-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: var(--lm-spacing-2xl);
-    align-items: start;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--lm-spacing-lg);
+    align-items: stretch;
 }
 
 .config-partition {
-    padding: 0;
     background: var(--lm-bg-white);
     border: 1px solid var(--lm-border-light);
     border-radius: var(--lm-radius-md);
-    padding: var(--lm-spacing-lg);
+    padding: var(--lm-spacing-md);
+    display: flex;
+    flex-direction: column;
 }
 
 .config-partition h3 {
-    margin: 0 0 var(--lm-spacing-lg) 0;
-    font-size: 15px;
+    margin: 0 0 12px 0;
+    font-size: 13px;
     font-weight: 600;
     color: var(--lm-text-primary);
-    border-bottom: 3px solid var(--lm-primary);
+    border-bottom: 2px solid var(--lm-primary);
     display: inline-block;
-    padding-bottom: var(--lm-spacing-sm);
+    align-self: flex-start;
+    padding-bottom: 4px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
 }
 
 .config-row {
-    margin-bottom: var(--lm-spacing-lg);
+    margin-bottom: 12px;
     display: flex;
     flex-direction: column;
 }
@@ -201,8 +257,8 @@
 }
 
 .config-row p {
-    margin: 0 0 var(--lm-spacing-sm) 0;
-    font-size: 13px;
+    margin: 0 0 4px 0;
+    font-size: 12px;
     font-weight: 600;
     color: var(--lm-text-primary);
 }
@@ -210,7 +266,7 @@
 .config-row label {
     display: flex;
     align-items: center;
-    gap: var(--lm-spacing-sm);
+    gap: 8px;
     cursor: pointer;
     user-select: none;
     font-size: 13px;
@@ -218,14 +274,15 @@
 
 .config-row input[type="checkbox"] {
     cursor: pointer;
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
+    margin: 0;
 }
 
 .config-flex {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: var(--lm-spacing-md);
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
 }
 
 .config-col {
@@ -233,25 +290,21 @@
     flex-direction: column;
 }
 
-.config-col p {
-    margin-bottom: var(--lm-spacing-sm);
-}
-
 /* Small Color Box */
 .small-color-box {
-    width: 60px !important;
-    height: 40px !important;
+    width: 100% !important;
+    max-width: 90px !important;
+    height: 34px !important;
     padding: 2px !important;
-    border: 2px solid var(--lm-border-light) !important;
+    border: 1px solid var(--lm-border-dark) !important;
     cursor: pointer;
     border-radius: var(--lm-radius-sm);
     background: var(--lm-bg-white);
-    transition: all 0.2s ease;
+    transition: border-color 0.2s ease;
 }
 
 .small-color-box:hover {
     border-color: var(--lm-primary) !important;
-    box-shadow: 0 0 0 3px rgba(34, 113, 177, 0.1);
 }
 
 /* Uniform Input Styles */
@@ -261,10 +314,10 @@
 .config-partition select {
     width: 100% !important;
     max-width: 100% !important;
-    min-height: 36px;
+    min-height: 34px;
     border: 1px solid var(--lm-border-dark);
     border-radius: var(--lm-radius-sm);
-    padding: var(--lm-spacing-xs) var(--lm-spacing-sm);
+    padding: 4px 8px;
     font-size: 13px;
     font-family: inherit;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -275,69 +328,104 @@
 .config-partition textarea:focus,
 .config-partition select:focus {
     border-color: var(--lm-primary);
-    box-shadow: 0 0 0 3px rgba(34, 113, 177, 0.1);
+    box-shadow: 0 0 0 2px rgba(34, 113, 177, 0.15);
     outline: none;
 }
 
 .config-partition textarea {
-    padding: var(--lm-spacing-sm);
+    padding: 6px 8px;
     resize: vertical;
-    min-height: 60px;
+    min-height: 52px;
+}
+
+/* Column 3: Focused Badge Preview + Quick Apply */
+.focused-preview-box {
+    background: repeating-conic-gradient(#f0f0f1 0% 25%, #ffffff 0% 50%) 50% / 18px 18px;
+    min-height: 140px;
+    flex: 1;
+    border: 1px solid var(--lm-border-light);
+    border-radius: var(--lm-radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+    padding: 12px;
+}
+
+.preview-caption {
+    margin: 8px 0 12px 0;
+    font-size: 12px;
+    color: var(--lm-text-secondary);
+}
+
+.quick-config-actions {
+    margin-top: auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--lm-border-light);
+}
+
+.quick-config-actions .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    font-weight: 500;
 }
 
 /* ============================================================================
-   PREVIEW STYLES - Enhanced Visual Feedback
+   PREVIEW STYLES - Compact Before & After Comparison
    ============================================================================ */
+
+.preview-header-bar {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.preview-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
 
 .preview-container {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: var(--lm-spacing-lg);
+    grid-template-columns: 1fr 1fr;
+    gap: var(--lm-spacing-md);
     background: var(--lm-bg-light);
     border: 1px solid var(--lm-border-light);
-    padding: var(--lm-spacing-lg);
-    border-radius: var(--lm-radius-md);
-}
-
-.main-preview {
-    grid-template-columns: 1fr 1fr;
-}
-
-.sidebar-preview {
-    flex-direction: column;
     padding: var(--lm-spacing-md);
-    gap: var(--lm-spacing-md);
-    background: transparent;
-    border: none;
+    border-radius: var(--lm-radius-md);
 }
 
 .preview-col {
     position: relative;
     min-height: 220px;
-    height: 420px;
+    max-height: 360px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     background: var(--lm-bg-white);
-    border: 2px solid var(--lm-border-light);
+    border: 1px solid var(--lm-border-light);
     border-radius: var(--lm-radius-md);
     box-shadow: var(--lm-shadow-md);
-    transition: all 0.2s ease;
+    transition: border-color 0.2s ease;
 }
 
 .preview-col:hover {
     border-color: var(--lm-primary);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.sidebar-preview .preview-col {
-    min-height: 160px;
 }
 
 .preview-placeholder {
-    color: #a7aaad;
+    color: #787c82;
     text-align: center;
     font-size: 13px;
     padding: var(--lm-spacing-lg);
@@ -345,51 +433,66 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: var(--lm-spacing-md);
+    gap: 8px;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+    min-height: 200px;
+    transition: color 0.2s ease, background 0.2s ease;
+}
+
+.preview-placeholder:hover {
+    color: var(--lm-primary);
+    background: rgba(34, 113, 177, 0.03);
+}
+
+.preview-placeholder .dashicons {
+    font-size: 28px;
+    width: 28px;
+    height: 28px;
+    opacity: 0.7;
 }
 
 .preview-image-wrapper {
     position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: inline-block;
+    line-height: 0;
     max-width: 100%;
-    max-height: 100%;
+    max-height: 340px;
     overflow: hidden;
 }
 
 .preview-img {
     max-width: 100%;
-    max-height: 100%;
+    max-height: 340px;
     display: block;
     height: auto;
     width: auto;
+    object-fit: contain;
 }
 
 .preview-label {
     position: absolute;
-    top: var(--lm-spacing-md);
-    padding: var(--lm-spacing-sm) var(--lm-spacing-md);
-    font-size: 11px;
+    top: 10px;
+    padding: 4px 10px;
+    font-size: 10px;
     font-weight: 700;
     border-radius: var(--lm-radius-sm);
     z-index: 10;
     text-transform: uppercase;
-    letter-spacing: 0.8px;
-    backdrop-filter: blur(4px);
+    letter-spacing: 0.6px;
 }
 
 .label-before {
-    left: var(--lm-spacing-md);
-    background: rgba(0, 0, 0, 0.75);
+    left: 10px;
+    background: rgba(0, 0, 0, 0.7);
     color: #fff;
 }
 
 .label-after {
-    right: var(--lm-spacing-md);
+    right: 10px;
     background: var(--lm-primary);
     color: #fff;
-    box-shadow: 0 2px 8px rgba(34, 113, 177, 0.3);
 }
 
 .watermark-overlay {
@@ -408,93 +511,84 @@
 }
 
 /* ============================================================================
-   PROGRESS & LOG STYLES
+   PROGRESS BAR (Inline inside Sticky Bar)
    ============================================================================ */
 
 .progress-wrapper {
-    margin-top: var(--lm-spacing-md);
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--lm-border-light);
 }
 
 .progress-bar {
-    height: 14px;
+    height: 10px;
     background: var(--lm-border-light);
-    border-radius: 7px;
+    border-radius: 5px;
     overflow: hidden;
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .progress-fill {
     height: 100%;
     width: 0%;
-    background: linear-gradient(90deg, var(--lm-primary), #1e5ba8);
-    transition: width 0.3s ease;
-    border-radius: 7px;
+    background: linear-gradient(90deg, var(--lm-primary), #135e96);
+    transition: width 0.25s ease;
+    border-radius: 5px;
 }
 
 .progress-text {
-    text-align: center;
-    font-size: 13px;
-    margin-top: var(--lm-spacing-md);
+    text-align: left;
+    font-size: 12px;
+    margin: 6px 0 0 0;
     font-weight: 600;
     color: var(--lm-text-primary);
 }
 
-#log-area {
-    margin-top: var(--lm-spacing-lg);
-    max-height: 300px;
-    overflow-y: auto;
-    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-    font-size: 12px;
-    background: #1e1e1e;
-    color: #d4d4d4;
-    padding: var(--lm-spacing-md);
+/* ============================================================================
+   POSTBOX ENHANCEMENTS
+   ============================================================================ */
+
+.pixelstamp-wrap .postbox {
+    background: var(--lm-bg-white);
+    border: 1px solid var(--lm-border-light);
     border-radius: var(--lm-radius-md);
-    border: 1px solid #333;
-    line-height: 1.6;
+    box-shadow: var(--lm-shadow-sm);
+    margin-bottom: 16px;
 }
 
-#log-area div {
-    margin-bottom: 6px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+.pixelstamp-wrap .postbox .hndle {
+    background: var(--lm-bg-light);
+    border-bottom: 1px solid var(--lm-border-light);
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--lm-text-primary);
+    cursor: default;
 }
 
-#log-area div:last-child {
-    border-bottom: none;
-}
-
-/* Log Entry Color States */
-#log-area .log-success {
-    color: #4caf50;
-}
-
-#log-area .log-error {
-    color: #f44336;
-}
-
-#log-area .log-info {
-    color: #2196f3;
+.pixelstamp-wrap .postbox .inside {
+    padding: 14px 16px;
+    margin: 0;
 }
 
 /* ============================================================================
-   TOAST NOTIFICATIONS - Fixed Position Feedback
+   TOAST NOTIFICATIONS
    ============================================================================ */
 
 #pixelstamp-toast {
     position: fixed;
-    bottom: var(--lm-spacing-xl);
-    right: var(--lm-spacing-xl);
+    bottom: 20px;
+    right: 20px;
     background: var(--lm-text-primary);
     color: #fff;
-    padding: var(--lm-spacing-md) var(--lm-spacing-lg);
+    padding: 12px 18px;
     border-radius: var(--lm-radius-md);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
     z-index: 99999;
     display: none;
     font-weight: 500;
-    font-size: 14px;
-    animation: toastSlideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    max-width: 300px;
+    font-size: 13px;
+    animation: toastSlideIn 0.25s ease-out;
+    max-width: 320px;
     word-wrap: break-word;
 }
 
@@ -504,32 +598,21 @@
 
 @keyframes toastSlideIn {
     from {
-        transform: translateY(20px);
+        transform: translateY(16px);
         opacity: 0;
     }
     to {
         transform: translateY(0);
         opacity: 1;
-    }
-}
-
-@keyframes toastSlideOut {
-    from {
-        transform: translateY(0);
-        opacity: 1;
-    }
-    to {
-        transform: translateY(20px);
-        opacity: 0;
     }
 }
 
 #pixelstamp-toast.success {
-    background: #4caf50;
+    background: #1e8e3e;
 }
 
 #pixelstamp-toast.error {
-    background: #f44336;
+    background: #d93025;
 }
 
 #pixelstamp-toast.info {
@@ -537,249 +620,49 @@
 }
 
 /* ============================================================================
-   RESPONSIVE DESIGN - Mobile & Tablet Optimization
+   RESPONSIVE DESIGN
    ============================================================================ */
 
-/* Tablet (768px - 1024px) */
-@media only screen and (max-width: 1024px) {
+@media only screen and (max-width: 1100px) {
+    .config-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .preview-partition {
+        grid-column: 1 / -1;
+    }
+}
+
+@media only screen and (max-width: 782px) {
+    .pixelstamp-sticky-bar {
+        top: 46px;
+        padding: 10px 12px;
+    }
+
     .config-grid {
         grid-template-columns: 1fr;
-    }
-
-    .main-top-row {
-        grid-template-columns: 1fr;
-    }
-
-    .action-selection-box {
-        grid-column: 1;
-    }
-
-    .aside-column {
-        grid-column: 1;
     }
 
     .preview-container {
         grid-template-columns: 1fr;
     }
-
-    .main-preview {
-        grid-template-columns: 1fr;
-    }
-
-    .button-large {
-        max-width: 100%;
-    }
 }
 
-/* Mobile (480px - 767px) */
-@media only screen and (max-width: 768px) {
-    .pixelstamp-wrap {
-        margin-top: var(--lm-spacing-lg);
+@media only screen and (max-width: 600px) {
+    .pixelstamp-sticky-bar {
+        position: static;
     }
 
-    .main-top-row {
-        grid-template-columns: 1fr;
-        gap: var(--lm-spacing-lg);
-        margin-bottom: var(--lm-spacing-lg);
+    .sticky-bar-left,
+    .sticky-bar-actions {
+        width: 100%;
     }
 
-    .action-selection-box {
-        grid-column: 1;
-    }
-
-    .aside-column {
-        grid-column: 1;
-        gap: var(--lm-spacing-md);
-    }
-
-    .config-grid {
-        grid-template-columns: 1fr;
-        gap: var(--lm-spacing-lg);
-    }
-
-    .config-partition {
-        padding: var(--lm-spacing-md);
-        border: 1px solid var(--lm-border-light);
-        border-radius: var(--lm-radius-md);
-    }
-
-    .action-buttons-side {
-        grid-template-columns: 1fr;
-    }
-
-    .preview-container {
-        grid-template-columns: 1fr;
-        gap: var(--lm-spacing-md);
-        padding: var(--lm-spacing-md);
-    }
-
-    .preview-col {
-        min-height: 200px;
-        height: 320px;
-    }
-
-    .sidebar-preview .preview-col {
-        min-height: 150px;
-    }
-
-    .config-flex {
-        grid-template-columns: 1fr;
-        gap: var(--lm-spacing-sm);
-    }
-
-    .button-large {
-        max-width: 100%;
-        width: 100% !important;
-    }
-
-    .small-color-box {
-        width: 50px !important;
-    }
-
-    #pixelstamp-toast {
-        bottom: var(--lm-spacing-md);
-        right: var(--lm-spacing-md);
-        left: var(--lm-spacing-md);
-        max-width: none;
-    }
-
-    .preview-label {
-        font-size: 9px;
-        padding: 4px 6px;
-    }
-
-    .postbox {
-        margin-left: 0 !important;
-        margin-right: 0 !important;
+    .sticky-bar-actions .button {
+        flex: 1;
     }
 }
-
-/* Small Mobile (< 480px) */
-@media only screen and (max-width: 480px) {
-    .pixelstamp-wrap {
-        margin-top: var(--lm-spacing-md);
-    }
-
-    .main-top-row {
-        gap: var(--lm-spacing-md);
-    }
-
-    .aside-column {
-        gap: var(--lm-spacing-sm);
-    }
-
-    .config-partition {
-        padding: var(--lm-spacing-sm);
-    }
-
-    .action-buttons-side {
-        grid-template-columns: 1fr;
-    }
-
-    .config-grid {
-        gap: var(--lm-spacing-md);
-    }
-
-    .preview-container {
-        padding: var(--lm-spacing-sm);
-        gap: var(--lm-spacing-sm);
-    }
-
-    .preview-col {
-        min-height: 180px;
-        height: 280px;
-    }
-
-    .small-color-box {
-        width: 45px !important;
-        height: 36px !important;
-    }
-
-    #log-area {
-        max-height: 200px;
-        font-size: 11px;
-        padding: var(--lm-spacing-sm);
-    }
-
-    .progress-bar {
-        height: 12px;
-    }
-
-    .config-row {
-        margin-bottom: var(--lm-spacing-md);
-    }
-}
-
-/* ============================================================================
-   POSTBOX ENHANCEMENTS
-   ============================================================================ */
-
-.postbox {
-    background: var(--lm-bg-white);
-    border: 1px solid var(--lm-border-light);
-    border-radius: var(--lm-radius-md);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-    transition: all 0.2s ease;
-}
-
-.postbox:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.postbox .hndle {
-    background: linear-gradient(135deg, var(--lm-bg-light), var(--lm-bg-white));
-    border-bottom: 2px solid var(--lm-primary);
-    padding: var(--lm-spacing-md) var(--lm-spacing-lg);
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--lm-text-primary);
-}
-
-.postbox .inside {
-    padding: var(--lm-spacing-lg);
-}
-
-/* ============================================================================
-   UTILITY CLASSES
-   ============================================================================ */
 
 .hidden {
     display: none !important;
-}
-
-.visible {
-    display: block !important;
-}
-
-.fade-in {
-    animation: fadeIn 0.3s ease-in;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
-}
-
-/* Accessibility & Print Styles */
-@media print {
-    .pixelstamp-wrap,
-    .action-buttons-side,
-    .button-large {
-        display: none;
-    }
-}
-
-/* High DPI Display Support */
-@media (min-width: 1440px) {
-    .config-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
-
-    .preview-container {
-        gap: var(--lm-spacing-2xl);
-    }
 }

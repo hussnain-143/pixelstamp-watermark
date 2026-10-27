@@ -78,7 +78,7 @@ class PixelStampWatermark {
         return $metadata;
     }
 
-    public function process_image($attachment_id, $settings) {
+    public function process_image($attachment_id, $settings, $stamp = null) {
         $file_path = get_attached_file($attachment_id);
         if (!$file_path || !file_exists($file_path)) {
             return false;
@@ -93,7 +93,7 @@ class PixelStampWatermark {
             copy($backup_path, $file_path);
         }
 
-        $applied = PixelStampProcessor::apply($file_path, $settings);
+        $applied = PixelStampProcessor::apply($file_path, $settings, $stamp);
         if ($applied) {
             update_post_meta($attachment_id, '_pixelstamp_watermarked', current_time('mysql'));
             $this->regenerate_attachment_metadata($attachment_id, $file_path);

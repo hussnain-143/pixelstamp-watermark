@@ -4,7 +4,7 @@ Tags: watermark, images, photo protection, auto watermark, photography
 Requires at least: 5.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.4.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -203,12 +203,23 @@ Yes. It works with standard WordPress attachments, so images used in posts, page
 
 == Screenshots ==
 
-1. PixelStamp admin dashboard with action buttons, global settings, watermark preview, and live progress bar.
-2. Configuration settings panel showing text style, background box, and spacing/offset controls.
-3. Live preview panel with side-by-side before and after watermark comparison.
-4. WordPress Media Library list view featuring the new real-time Watermark status tracking column.
+1. PixelStamp admin dashboard with Sticky Action & Progress Toolbar, compact 3-column configuration (Text Style, Box & Spacing, Badge Preview), and system status pills.
+2. Live batch processing progress bar docked directly inside the sticky action bar with per-image status tracking.
+3. Live Image Preview (Before & After) panel with quick inline action buttons (Change Image, Apply Watermark, Restore Original) and pixel-identical canvas watermark rendering.
+4. WordPress Media Library list view featuring the real-time Watermark status tracking column.
 
 == Changelog ==
+
+= 1.4.0 =
+* UI/UX Overhaul: Redesigned the PixelStamp admin dashboard into a compact 3-column layout (Text Style, Box & Spacing, Badge Preview) that eliminates excessive empty whitespace and fits comfortably on standard screens.
+* Feature: Added a Sticky Action & Progress Toolbar (`position: sticky`) that stays pinned at the top of the screen while scrolling, keeping Select Images, Auto-apply on Upload, Apply Watermark, Apply to All, Restore Originals, and the live batch progress bar always within reach.
+* Feature: Added quick inline action buttons (`Select Images` / `Apply Watermark` inside the Badge Preview card, plus `Change Image` / `Apply Watermark` / `Restore Original` directly in the Live Image Preview header) so you never need to scroll back up to apply or restore watermarks.
+* Feature: Replaced the bulky System Diagnostics card and alarming "Fallback Bitmap Mode" notice with clean, non-intrusive header status pills (`GD: Loaded`, `FreeType: Enabled`).
+* Feature: Added official WordPress Playground `blueprint.json` configuration for instant one-click Live Preview on WordPress.org.
+* Fix (100% Preview-to-Applied Parity): Implemented a unified HTML5 Canvas watermark stamp engine paired with server-side alpha-preserving PNG compositing (`imagecopyresampled` + `imagecopy`). Applied watermarks now match the Live Preview pixel-for-pixel in font family, font weight, padding, border radius, opacity, and rotation across all servers and WordPress Playground (`php-wasm`).
+* Fix: Added authenticated original-backup image streaming (`wp_ajax_pixelstamp_original_image`) for the Before/After comparison panel so the BEFORE pane always shows the untouched original backup and the AFTER pane never double-overlays the preview watermark on top of an already-watermarked image.
+* Fix: Corrected server-side GD FreeType point size conversion (`0.75x` px-to-pt ratio at 96 DPI) and canonical `realpath()` / `GDFONTPATH` font resolution for background auto-apply uploads.
+* Compatibility: Tested and verified compatibility with WordPress 7.1.
 
 = 1.3.0 =
 * Feature: Added real-time Watermark status column to the WordPress Media Library list view (shows Watermarked status and backup availability).
@@ -254,6 +265,9 @@ Yes. It works with standard WordPress attachments, so images used in posts, page
 * Added support for multi-line text and background boxes.
 
 == Upgrade Notice ==
+
+= 1.4.0 =
+Major UI/UX and rendering update: introduces a compact 3-column dashboard, a Sticky Action & Progress Toolbar with inline Apply Watermark buttons (no scrolling needed), 100% pixel-identical Canvas-to-Server watermark rendering, accurate Before/After backup comparison, and WordPress 7.1 + WordPress Playground support.
 
 = 1.3.0 =
 Major stability and security update: adds WordPress Media Library watermark status tracking column, restores live progress bar feedback, fixes backup filename collisions with protected directory storage, corrects rotation on JPEGs, and fixes multi-line text preservation.
